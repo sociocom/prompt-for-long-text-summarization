@@ -12,3 +12,18 @@
 2. 自己在transformer的库里添加一个past_query参数
 3. 如何让prefix部分各层之间相连
 4. 该如何考虑长文本的批次划分问题呢
+
+
+## Note in 07-24
+1. 关于划分摘要的事情, yada建议rule-based的方法手动为每一段做切分
+2. 由于tobyoki的文本非常特殊, 可以sentence by sentence去切割
+3. 或者可以找到time-relation的数据集, 根据时间做切分
+4. Lis提到可以类似于LSTM的方法, 关注一下遗忘比例和记忆比例
+5. 在实验部分, yada认为可以用base模型来试一下RMT的效果
+
+**anyway** : talk is cheap, show me your code
+           : 需要反复大量尝试各种方法
+
+### TODO: next week
+1. 读今天ACL上一篇相关idea
+2. 读一下RetNet和RWKV
