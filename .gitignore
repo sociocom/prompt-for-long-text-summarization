@@ -167,4 +167,4 @@ cython_debug/
 /data
 
 # logs
-logs.txt
+/logs

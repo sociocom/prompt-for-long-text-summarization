@@ -386,6 +386,7 @@ def main():
         accelerator.print(f"{epoch=}: {train_ppl=} {train_epoch_loss=}")
 
         # ================================== 4.2 评估验证集 ======================================
+        # TODO: 加上清空缓存
         model.eval()
         print("\n")
         print("Start evaluating ...")
@@ -401,6 +402,7 @@ def main():
         accelerator.print(f"{epoch=}: {eval_ppl=} {eval_epoch_loss=}")
         
         # ================================== 5. 评估测试集 ======================================
+        # TODO: 测试初始的rouge值
         if (epoch+1) % 5 == 0:
             model.eval()
             rouge_metric = evaluate.load("rouge")
