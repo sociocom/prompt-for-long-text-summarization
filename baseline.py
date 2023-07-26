@@ -286,6 +286,9 @@ def main():
     eval_dataset = cnn_dataset["validation"].shuffle(seed=42).select(range(eval_size))
     test_dataset = cnn_dataset["test"].shuffle(seed=42).select(range(test_size))
     
+    # NOTE
+    # 这里是为了动态填充batch，因为每个batch的样本长度不一样
+    # 比如batch0最大长度为100，batch1最大长度为200，那么batch0的样本会被pad到200
     def collate_fn(examples):
         return tokenizer.pad(examples, padding='longest', return_tensors='pt')
     

@@ -6,6 +6,8 @@
 3. 实际上并不是将输入拼接了进去, 而是使用了past_key_values参数，这样就不需要修改原始模型架构，但是问题是prefix部分并没有query矩阵传进去，这样prefix部分就无法显示的保存后续序列的信息（只能通过反向传递的时候保存）。为什么没有直接拼接的原因是：如果直接拼接了, prefix部分也成了被冻结的参数，很难不改网络结构的前提下，只冻结一部分。
 4. past_key_value和past_key_values的定义在bert源码591行
 5. 如何确定学习率等超参数呢
+6. 总结一下BART更类似于传统的编码器解码器模型，即编码器和解码器之间有一个cell在传递信息。
+   而T5更类似于transformer
 
 ## TODO
 1. 复现一份简单的代码完成Summarization任务
@@ -20,10 +22,21 @@
 3. 或者可以找到time-relation的数据集, 根据时间做切分
 4. Lis提到可以类似于LSTM的方法, 关注一下遗忘比例和记忆比例
 5. 在实验部分, yada认为可以用base模型来试一下RMT的效果
-
+6. yada说summarize部分是自然语言文本, 他觉得可以当作是长期记忆，而prompt部分当作短期记忆
+7. 初始的summarize部分是用[SEP]分割, 也就说第一段摘要为空
 **anyway** : talk is cheap, show me your code
            : 需要反复大量尝试各种方法
 
 ### TODO: next week
 1. 读今天ACL上一篇相关idea
 2. 读一下RetNet和RWKV
+3. 实际上在segment之间也可以传播梯度，只在prefix部分传导就可以了，prefix部分的参数量很小，不会带来很大的内存开销
+4. 我可能需要加一个字典来记录超参数, 用以多轮查询最优的超参数
+
+
+
+# TODO: 07-26 
+1. 读一下lora代码
+2. 跑一遍lora代码
+
+3. 了解一下hfargumentparser logging类
