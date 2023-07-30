@@ -10,9 +10,9 @@
    而T5更类似于transformer
 
 ## TODO
-1. 复现一份简单的代码完成Summarization任务
+1. ~~复现一份简单的代码完成Summarization任务~~
 2. 自己在transformer的库里添加一个past_query参数
-3. 如何让prefix部分各层之间相连
+3. 如何让prefix部分各层之间相连 (是否可以通过添加MLP呢)
 4. 该如何考虑长文本的批次划分问题呢
 
 
@@ -35,8 +35,19 @@
 
 
 
-# TODO: 07-26 
+### TODO: 07-26 
 1. 读一下lora代码
 2. 跑一遍lora代码
 
 3. 了解一下hfargumentparser logging类
+
+## NOTE: 07-26
+1. fine-tuning灾难性遗忘问题（记忆的重要性）
+2. 为什么bart模型在推理的时候反而内存消耗比训练的时候大：
+   * 可能原因：对于t5和bart模型，针对生成类任务，在训练阶段是使用teacher forcing方法而不是beam search
+3. 我可能可以试着先去尝试一下别的长文本任务
+
+
+### 
+
+1. 读一下RNN和LSTM的代码
