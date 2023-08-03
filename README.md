@@ -50,3 +50,24 @@
 
 ### 
 1. 读一下RNN和LSTM的代码
+
+
+## NOTE: 08-01
+1. 需要解决一下rel postion的问题：或许可以参照longformer
+
+## NOTE：08-03
+1. Pytorch中很多代码之所以加unsqueeze是为了让数组进行广播操作
+```
+import torch
+
+# 定义两个形状不完全匹配的张量
+a = torch.tensor([[1, 2, 3]])
+b = torch.tensor([10])
+
+# 逐元素相加，b会自动广播成与a相同形状
+c = a + b
+
+print("a shape:", a.shape)  # 输出: a shape: torch.Size([1, 3])
+print("b shape:", b.shape)  # 输出: b shape: torch.Size([1])
+print("c:", c)  # 输出: c: tensor([[11, 12, 13]])
+```

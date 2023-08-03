@@ -1,0 +1,7 @@
+datasets
+numpy
+tqdm
+transformers[torch]
+seqeval
+gpytorch
+evaluate
