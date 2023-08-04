@@ -71,3 +71,8 @@ print("a shape:", a.shape)  # 输出: a shape: torch.Size([1, 3])
 print("b shape:", b.shape)  # 输出: b shape: torch.Size([1])
 print("c:", c)  # 输出: c: tensor([[11, 12, 13]])
 ```
+2. 可以按照百分比切割摘要
+   * 第一段切割一部分
+   * 第二段给第一部分+第二部分
+   * .....
+   * 最后一段给全部
