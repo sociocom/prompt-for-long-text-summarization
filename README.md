@@ -1,5 +1,35 @@
 # prompt-for-long-text-summarization
 
+project/
+|-- config/
+|   |-- config.py
+|-- data/
+|   |-- dataset.py
+|-- models/
+|   |-- model.py
+|-- utils/
+|   |-- helper_functions.py
+|-- main.py
+|-- train.py
+|-- evaluate.py
+|-- requirements.txt
+
+config/ 目录用于存放配置相关的文件，比如 config.py 中定义的配置类。
+data/ 目录包含与数据处理和数据集相关的文件，如 dataset.py 可用于定义数据集类。
+models/ 目录存放模型相关的文件，例如 model.py 可用于定义模型类。
+utils/ 目录用于存放通用的工具函数或类，例如 helper_functions.py 可用于定义辅助函数。
+main.py 是程序的主入口，用于调用训练或评估的函数。
+train.py 和 evaluate.py 分别是训练和评估的脚本，用于实际运行训练和评估过程。
+requirements.txt 列出了项目所需的依赖包，方便环境的搭建。
+
+
+
+
+
+
+
+
+
 ## prefix-propagation
 * prefix-propagation的做法和prefix-tuing的区别是：prefix-tuning是完全把prefix的模块放到past_key_value里, 而这里是要直接和输入的sequence做concat来修改query矩阵
 

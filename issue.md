@@ -19,3 +19,6 @@
 ## Transformer库学习记录
 ### 一：Trainer
 1. trainer类可以`evaluate_during_training=True`, 这样就可以在训练的时候进行评估, 而不需要单独调用trainer.evaluate()。 注意evaluate默认只在eval数据集上测试一次。
+
+### 二：XXXPretrainedModel
+1. 例如BertPretrainedModel, 其实并不是已经预训练好的模型。这个基类 BertPretrainedModel 包含了 BERT 模型的通用结构和方法，但它的参数并没有进行初始化。
