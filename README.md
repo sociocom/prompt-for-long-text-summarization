@@ -1,5 +1,16 @@
 # prompt-for-long-text-summarization
 
+## prefix-propagation
+* prefix-propagation的做法和prefix-tuing的区别是：prefix-tuning是完全把prefix的模块放到past_key_value里, 而这里是要直接和输入的sequence做concat来修改query矩阵
+
+## 疑问
+* 这种做法真的能保证只有prompt的部分传播梯度吗？？？
+* 有没有办法能检测每一步参数更新的过程
+
+
+
+
+
 ## NOTE
 1. 虽然我们可以直接调用transformers的api, 但是多个segment直接传递的时候, 直觉上还是应该使用relative positional encoding
 2. 如果在多个segment直接传递resnet
