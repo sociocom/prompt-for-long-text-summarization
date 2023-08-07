@@ -43,8 +43,12 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         
         # MODIFIED
         # Start
-        self.config = config
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.set_params(**config)
+        # self.config = config
+        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        
+        # TODO: forget some part of long range memory and add new memory
+        # 
         # End
         
         # https://github.com/huggingface/transformers/issues/4701
@@ -105,8 +109,21 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
     def pad_and_segment(self, input_ids):
         """
         segment input_ids into segments
-        be careful that all the segments are treated as one input sequence 
-        and dealed with incurrence 
+        
+        input sample:
+        segmented_batch = [
+            [sample1_seg1, sample1_seg2, sample1_seg3],
+            [sample2_seg1, sample2_seg2],
+            [sample3_seg1, sample3_seg2, sample3_seg3, sample3_seg4]
+        ]
+                   
+        output sample:
+        segmented_batch = [
+            [sample1_seg1, sample2_seg1, sample3_seg1],
+            [sample1_seg2, sample2_seg2, sample3_seg2],
+            [sample1_seg3, None, sample3_seg3],
+            [None, None, sample3_seg4]
+        ]
         """
         segmented_batch = []
         # input_ids: [batch_size, seq_len]
@@ -147,74 +164,79 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         return segmented_batch
     # End
     
-    # TODO: add [SEG] between input and summary
-    # Maybe we should use BartDataCollatorForSeq2Seq
-    def pad_add_special_tokens(self, **kwargs):
+    def set_params(self, tokenizer, **config):
+        self.config = config 
+        self.extract_special_tokens(tokenizer)
+        # self.extend_word_embeddings(config['pre_seq_len'], tokenizer)
         
-        """
-        Copied from transformers.BartTokenizer.py
-
-        You can get around that behavior by passing `add_prefix_space=True` when instantiating this tokenizer or when you
-        call it on some text, but since the model was not pretrained this way, it might yield a decrease in performance.
-
-        <Tip>
-
-        When used with `is_split_into_words=True`, this tokenizer will add a space before each word (even the first one).
-
-        </Tip>
-
-        This tokenizer inherits from [`PreTrainedTokenizer`] which contains most of the main methods. Users should refer to
-        this superclass for more information regarding those methods.
-
-        Args:
-            vocab_file (`str`):
-                Path to the vocabulary file.
-            merges_file (`str`):
-                Path to the merges file.
-            errors (`str`, *optional*, defaults to `"replace"`):
-                Paradigm to follow when decoding bytes to UTF-8. See
-                [bytes.decode](https://docs.python.org/3/library/stdtypes.html#bytes.decode) for more information.
-            bos_token (`str`, *optional*, defaults to `"<s>"`):
-                The beginning of sequence token that was used during pretraining. Can be used a sequence classifier token.
-
-                <Tip>
-
-                When building a sequence using special tokens, this is not the token that is used for the beginning of
-                sequence. The token used is the `cls_token`.
-
-                </Tip>
-
-            eos_token (`str`, *optional*, defaults to `"</s>"`):
-                The end of sequence token.
-
-                <Tip>
-
-                When building a sequence using special tokens, this is not the token that is used for the end of sequence.
-                The token used is the `sep_token`.
-
-                </Tip>
-
-            sep_token (`str`, *optional*, defaults to `"</s>"`):
-                The separator token, which is used when building a sequence from multiple sequences, e.g. two sequences for
-                sequence classification or for a text and a question for question answering. It is also used as the last
-                token of a sequence built with special tokens.
-            cls_token (`str`, *optional*, defaults to `"<s>"`):
-                The classifier token which is used when doing sequence classification (classification of the whole sequence
-                instead of per-token classification). It is the first token of the sequence when built with special tokens.
-            unk_token (`str`, *optional*, defaults to `"<unk>"`):
-                The unknown token. A token that is not in the vocabulary cannot be converted to an ID and is set to be this
-                token instead.
-            pad_token (`str`, *optional*, defaults to `"<pad>"`):
-                The token used for padding, for example when batching sequences of different lengths.
-            mask_token (`str`, *optional*, defaults to `"<mask>"`):
-                The token used for masking values. This is the token used when training this model with masked language
-                modeling. This is the token which the model will try to predict.
-            add_prefix_space (`bool`, *optional*, defaults to `False`):
-                Whether or not to add an initial space to the input. This allows to treat the leading word just as any
-                other word. (BART tokenizer detect beginning of words by the preceding space).
-            """
-            
+        # tokenizer.num_special_tokens_to_add(): cal the number of special tokens needed to add except [SEP]
+        self.segment_size = config['input_size'] - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
+        if 'sep_token' in tokenizer.special_tokens_map:
+            self.segment_size -= 1
+        
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.special_token_ids = [tokenizer.pad_token_id]
+        for token in ['cls_token', 'sep_token', 'eos_token', 'bos_token']:
+            token_id = getattr(tokenizer, f'{token}_id')
+            if token_id is not None:
+                self.register_buffer(token, torch.tensor([token_id]))
+                self.special_token_ids.append(token_id)
+            else:
+                setattr(self, token, None)
+                
+    # def extend_word_embeddings(self, tokenizer):
+    #     vocab_size = self.model.config.vocab_size
+    #     # NOTE: Really necessary???
+    #     extended_vocab_size = vocab_size + self.config.pre_seq_len
+    #     self.pre_seq_len = self.config.pre_seq_len
+    
+        
+    # Memory mechanism like RNN
+    def forget_and_memory(self,):
         raise NotImplementedError
+    
+    def pad_add_special_tokens(self, input_ids, **kwargs):
+        """
+        {'bos_token': '<s>',
+         'eos_token': '</s>',
+         'unk_token': '<unk>',
+         'sep_token': '</s>',
+         'pad_token': '<pad>',
+         'cls_token': '<s>',
+         'mask_token': '<mask>'
+        }
+        """
+        input_ids = [self.bos_token_id] + input_ids + [self.eos_token_id]
+        # this implementation just add <s> and </s> to the input sequence
+        # TODO: maybe need to add other special tokens
+        
+        raise NotImplementedError
+    
+    def prepare_kwargs(self, segment_input_ids, kwargs):
+        seg_kwargs = dict(**kwargs)
+        # [sample1_seg1, sample2_seg1, sample3_seg1,....] up to batch_size
+        # Some of the segments are None like: [sample1_seg3, None, sample3_seg3]
+        non_empty_mask = [s is not None for s in segment_input_ids]
+        
+        # all the segments are None, due to the max_n_segments >> the number of segments
+        if sum(non_empty_mask) == 0:
+            return None, non_empty_mask
+        
+        input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+        # embedding layer
+        input_embeds = self.model.shared(input_ids)
+        
+        seg_kwargs['input_ids'] = None
+        seg_kwargs['inputs_embeds'] = input_embeds
+        if seg_kwargs.get('labels') is not None:
+            seg_kwargs['labels'] = seg_kwargs['labels'][non_empty_mask]
+        seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
+    
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
     
     def forward(
         self,
@@ -243,6 +265,16 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
 
         Returns:
         """ 
+        
+        kwargs = {
+            'attention_mask': attention_mask, 
+            # 'token_type_ids': token_type_ids,
+            # 'position_ids': position_ids, 
+            'inputs_embeds': inputs_embeds,
+            'labels': labels, 'output_attentions': output_attentions,
+            'output_hidden_states': output_hidden_states, 'return_dict': return_dict,
+        }
+        
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
         if labels is not None:
@@ -255,7 +287,22 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                 )
                 
         # MODIFIED: add prefix encoder
-       
+        batch_size = input_ids.shape[0]
+        past_key_values = self.get_prompt(batch_size)
+        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
+        attention_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        # segmented: [max_n_segments, batch_size, segment_size]
+        segmented = self.pad_and_segment(input_ids)
+        
+        # NOTE: why???
+        if self.pre_seq_len == 0:
+            segmented = segmented[-1:]
+        
+        model_outputs = []
+        for seg_num, segment_input_ids in enumerate(segmented):
+            if self.config['bptt_depth'] != -1:
+                raise NotImplementedError
+
 class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config):
         super().__init__(config)
