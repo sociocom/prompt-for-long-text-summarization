@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
 
-import logger
+import logging
 import copy
 import math
 from typing import List, Optional, Tuple, Union
@@ -10,12 +11,14 @@ from typing import List, Optional, Tuple, Union
 from transformers import (
     BartForConditionalGeneration, 
     T5ForConditionalGeneration,
-    GPT2ForConditionalGeneration,
+    # GPT2ForConditionalGeneration,
 )
 from transformers import BartConfig, T5Config, GPT2Config
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
+
+logger = logging.getLogger(__name__)
 
 # copied from transformers.modeling_bart.py
 def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start_token_id: int):
@@ -35,7 +38,7 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
-    def __init__(self, config: BartConfig):
+    def __init__(self, config: BartConfig, tokenizer):
         super().__init__(config)
         # self.model = BartModel(config)
         # self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
@@ -43,9 +46,10 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         
         # MODIFIED
         # Start
-        self.set_params(**config)
-        # self.config = config
-        # self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.set_params(
+            tokenizer=tokenizer,
+            config=config
+        )
         
         # TODO: forget some part of long range memory and add new memory
         # 
@@ -69,6 +73,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
         self.prefix_encoder = PrefixEncoder(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
         bart_param = 0
         all_param = 0
@@ -106,7 +111,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
     
     # MODIFIED
     # Start
-    def pad_and_segment(self, input_ids):
+    def pad_and_segment(self, input_ids, attention_mask=None, labels=None):
         """
         segment input_ids into segments
         
@@ -126,15 +131,39 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         ]
         """
         segmented_batch = []
+        segmented_batch_attention_masks = []
+        segmented_batch_labels = []
+        
+        if attention_mask is None:
+            attention_mask = [None] * input_ids.shape[0]
+        batch_attention_mask = attention_mask
+            
+        # inference mode
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+        
         # input_ids: [batch_size, seq_len]
-        for seq in input_ids:
+        for seq, attn_mask, label in zip(input_ids, batch_attention_mask, batch_labels):
+            
             # pytorch syntax: element-wise operation
             drop_mask = sum([seq == t for t in self.special_token_ids])
+            
             # bool type slice for tensor type
             # remove special tokens
             seq = seq[(1 - drop_mask).bool()]
+            
             # truncate the sequence to the maximum length
+            # TODO: config is NotImplemented  dict or dataclass?
             seq = seq[:self.config.segment_size * self.config.max_n_segments]
+            
+            if att_mask is not None:
+                att_mask = att_mask[(1-drop_mask).bool()]
+                att_mask = att_mask[:self.config.segment_size * self.config.max_n_segments]
+            if label is not None:
+                label = label[(1-drop_mask).bool()]
+                label = label[:self.config.segment_size * self.config.max_n_segments]
+            
             
             align = self.config.segment_alignment
             if align in {'right', None}:
@@ -148,8 +177,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                 raise NotImplementedError
 
             input_segments = [seq[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
-            # TODO: do the implementation
-            # input_segments = [self.pad_add_special_tokens(t, self.config.input_size) for t in input_segments]
+            input_segments = [self.pad_add_special_tokens(t, self.config.input_size) for t in input_segments]
             
             # add empty segment markers if needed
             n_empty_segments = self.config.max_n_segments - len(input_segments)
@@ -158,18 +186,34 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             
             # segmented_batch: 
             segmented_batch.append(input_segments)
-        
-        segmented_batch = [[sample[seg_num] for sample in segmented_batch] \
+            
+            if attn_mask is not None:
+                attn_mask_segments = [att_mask[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+                attn_mask_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='attention_mask') for t in attn_mask_segments]
+                attn_mask_segments = [None] * n_empty_segments + attn_mask_segments
+                segmented_batch_attention_masks.append(attn_mask_segments)
+            
+            if labels is not None:
+                labels_segments = [labels[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+                labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
+                labels_segments = [None] * n_empty_segments + labels_segments
+                segmented_batch_labels.append(labels_segments)
+                
+        segmented_batch = [[sample[seg_num] for sample in segmented_batch] 
                             for seg_num in range(self.config.max_n_segments)]
-        return segmented_batch
+        segmented_batch_attention_masks = [[sample[seg_num] for sample in segmented_batch_attention_masks]
+                                           for seg_num in range(self.config.max_n_segments)]
+        segmented_batch_labels = [[sample[seg_num] for sample in segmented_batch_labels]
+                                  for seg_num in range(self.config.max_n_segments)]
+        return segmented_batch, segmented_batch_attention_masks, segmented_batch_labels
     # End
     
-    def set_params(self, tokenizer, **config):
+    def set_params(self, tokenizer, config):
         self.config = config 
         self.extract_special_tokens(tokenizer)
         # self.extend_word_embeddings(config['pre_seq_len'], tokenizer)
         
-        # tokenizer.num_special_tokens_to_add(): cal the number of special tokens needed to add except [SEP]
+        # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
         self.segment_size = config['input_size'] - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
         if 'sep_token' in tokenizer.special_tokens_map:
             self.segment_size -= 1
@@ -190,28 +234,67 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
     #     # NOTE: Really necessary???
     #     extended_vocab_size = vocab_size + self.config.pre_seq_len
     #     self.pre_seq_len = self.config.pre_seq_len
-    
-        
+
     # Memory mechanism like RNN
     def forget_and_memory(self,):
         raise NotImplementedError
     
-    def pad_add_special_tokens(self, input_ids, **kwargs):
+    #  prefix-tuning don't need to concat prefix and input sequence
+    def pad_add_special_tokens(self, tensor, segment_size, 
+                               prompts=None, prompt_attention_mask=None, # maybe better to use pre_seq_len and generate prompts attention mask?
+                               add_to='input_ids'):
         """
-        {'bos_token': '<s>',
-         'eos_token': '</s>',
-         'unk_token': '<unk>',
-         'sep_token': '</s>',
-         'pad_token': '<pad>',
-         'cls_token': '<s>',
-         'mask_token': '<mask>'
+        bart tokenizer:
+        {'bos_token': '<s>', 0
+         'eos_token': '</s>', 2
+         'unk_token': '<unk>', 3
+         'sep_token': '</s>', 0
+         'pad_token': '<pad>', 1
+         'cls_token': '<s>', 0
+         'mask_token': '<mask>' 50264
         }
         """
-        input_ids = [self.bos_token_id] + input_ids + [self.eos_token_id]
-        # this implementation just add <s> and </s> to the input sequence
-        # TODO: maybe need to add other special tokens
+        input_elements = []
+        # Add special tokens: <s> and </s> to the input sequence
+        # For prefix-prop
+        if prompts is not None:
+            if add_to == 'inputs':
+                input_elements += [self.cls_token, prompts, self.sep_token, tensor, self.sep_token]
+            # For Bart, only the pad token is 0 in attention_mask
+            elif add_to == 'attention_mask':
+                mask_value = torch.ones((1), device=tensor.device)
+                input_elements += [mask_value, prompt_attention_mask, mask_value, tensor, mask_value]
+            # As a encoder-decoder model：is not needed to add prompt to labels
+            elif add_to == 'labels':
+                input_elements += [self.cls_token, tensor, self.sep_token]
+        # For prefix-tuning/p-tuning v2
+        else:
+            if add_to == 'input_ids':
+                input_elements += [self.cls_token, tensor, self.sep_token]
+            elif add_to == 'attention_mask':
+                mask_value = torch.ones((1), device=tensor.device)
+                input_elements += [mask_value, tensor, mask_value]
+            elif add_to == 'labels':
+                input_elements += [self.cls_token, tensor, self.sep_token]
+        tensor = torch.cat(input_elements)
         
-        raise NotImplementedError
+        # Add padding tokens
+        # TODO: implement summary module
+        #       now self.config.sum_size default = 0
+        pad_size = segment_size - tensor.shape[0] - self.config.sum_size
+        if pad_size > 0:
+            if add_to == 'input_ids':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'attention_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+            elif add_to == 'labels':
+                # for Seq2Seq labels need to be pad by -100
+                tensor = F.pad(tensor, (0, pad_size), value=-100)
+                pass
+        return tensor
+
+        # TODO: this implementation just add <s> and </s> to the input sequence
+        #       maybe need to add other special tokens
     
     def prepare_kwargs(self, segment_input_ids, kwargs):
         seg_kwargs = dict(**kwargs)
@@ -291,23 +374,28 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         past_key_values = self.get_prompt(batch_size)
         prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
         attention_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        
         # segmented: [max_n_segments, batch_size, segment_size]
         segmented = self.pad_and_segment(input_ids)
         
         # NOTE: why???
-        if self.pre_seq_len == 0:
-            segmented = segmented[-1:]
+        # if self.pre_seq_len == 0:
+        #     segmented = segmented[-1:]
         
         model_outputs = []
         for seg_num, segment_input_ids in enumerate(segmented):
-            if self.config['bptt_depth'] != -1:
+            if self.config.bptt_depth != -1:
                 raise NotImplementedError
 
+    def generate(self):
+        raise NotImplementedError
+    
+    
 class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config):
         super().__init__(config)
 
- 
+
 # ============================================
 # MODIFIED from transformers.modeling_t5.py
 # ============================================
