@@ -65,6 +65,9 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         # Start
         for param in self.model.parameters():
             param.requires_grad = False
+        
+        for param in self.lm_head.parameters():
+            param.requires_grad = False
             
         self.pre_seq_len = config.pre_seq_len
         self.n_layer = config.num_hidden_layers
