@@ -70,23 +70,23 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
         bart_param = 0
+        lm_head_param = 0
         all_param = 0
         
         # count the number of trainable parameters in bart
         for name, param in self.model.named_parameters():
             bart_param += param.numel() # numel() returns the total number of elements in the input tensor
-        
+        for name, param in self.lm_head.named_parameters():
+            lm_head_param += param.numel()
+            
         for name, param in self.named_parameters():
             all_param += param.numel()
             
-        trainable_param = all_param - bart_param
+        trainable_param = all_param - bart_param - lm_head_param
         
         print("Total parameters: {:,}".format(all_param))
         print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
-        # End
 
-    # MODIFIED
-    # Start
     def get_prompt(self, batch_size):
         prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.model.device)
         past_key_values = self.prefix_encoder(prefix_tokens)
@@ -101,10 +101,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         past_key_values = self.dropout(past_key_values)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4])
         return past_key_values
-    # End
     
-    # MODIFIED
-    # Start
     def pad_and_segment(self, input_ids, attention_mask=None, labels=None):
         """
         segment input_ids into segments
@@ -148,7 +145,6 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             seq = seq[(1 - drop_mask).bool()]
             
             # truncate the sequence to the maximum length
-            # TODO: config is NotImplemented  dict or dataclass?
             seq = seq[:self.config.segment_size * self.config.max_n_segments]
             
             if att_mask is not None:
