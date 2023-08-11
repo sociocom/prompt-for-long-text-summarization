@@ -36,6 +36,11 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 
     return shifted_input_ids
 
+
+# ============================================
+# =============== BART model =================
+# ============================================
+
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config: BartConfig, tokenizer):
@@ -99,9 +104,12 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             self.n_embd
         )        
         past_key_values = self.dropout(past_key_values)
-        past_key_values = past_key_values.permute([2, 0, 3, 1, 4])
+        # (2,batch_size,n_head,seq_len,head_dim)
+        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
         return past_key_values
     
+    # TODO：labels按照比例切分
+    # TODO: 25% -> 50% -> 75% -> 100% -> 100% -> 100% -> 100% -> 100% -> 100% -> 100%
     def pad_and_segment(self, input_ids, attention_mask=None, labels=None):
         """
         segment input_ids into segments
@@ -152,8 +160,8 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                 att_mask = att_mask[:self.config.segment_size * self.config.max_n_segments]
             if label is not None:
                 label = label[(1-drop_mask).bool()]
+                # TODO：label = label[:self.config.sum_max_size * self.config.max_n_segments]
                 label = label[:self.config.segment_size * self.config.max_n_segments]
-            
             
             align = self.config.segment_alignment
             if align in {'right', None}:
@@ -275,26 +283,37 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         # TODO: this implementation just add <s> and </s> to the input sequence
         #       maybe need to add other special tokens
     
-    def prepare_kwargs(self, segment_input_ids, kwargs):
+    def prepare_kwargs(self, segment, kwargs):
+        segment_input_ids, segment_attention_masks, segment_labels = segment
         seg_kwargs = dict(**kwargs)
+        
         # [sample1_seg1, sample2_seg1, sample3_seg1,....] up to batch_size
         # Some of the segments are None like: [sample1_seg3, None, sample3_seg3]
         non_empty_mask = [s is not None for s in segment_input_ids]
-        
-        # all the segments are None, due to the max_n_segments >> the number of segments
+        # all the segments are None, due to the max_n_segments >> the number of segments        
         if sum(non_empty_mask) == 0:
             return None, non_empty_mask
         
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
-        # embedding layer
-        input_embeds = self.model.shared(input_ids)
+        input_embeds = self.model.embeddings(input_ids)
+
         
         seg_kwargs['input_ids'] = None
         seg_kwargs['inputs_embeds'] = input_embeds
-        if seg_kwargs.get('labels') is not None:
-            seg_kwargs['labels'] = seg_kwargs['labels'][non_empty_mask]
         seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
-    
+        # if seg_kwargs.get('token_type_ids') is not None:
+        #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
+        if seg_kwargs['labels'] is not None:
+            seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+        
+        # if seg_kwargs['labels_mask'] is not None:
+        # seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
+        # if seg_kwargs.get('token_type_ids') is not None:
+        #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
+        seg_kwargs['output_hidden_states'] = True
+        
+        return seg_kwargs, non_empty_mask
+        
     def get_attention_mask(self, tensor):
         mask = torch.ones_like(tensor)
         mask[tensor == self.pad_token_id] = 0
@@ -327,7 +346,6 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
 
         Returns:
         """ 
-        
         kwargs = {
             'attention_mask': attention_mask, 
             # 'token_type_ids': token_type_ids,
@@ -349,32 +367,53 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                 )
                 
         # MODIFIED: add prefix encoder
-        batch_size = input_ids.shape[0]
-        past_key_values = self.get_prompt(batch_size)
-        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
-        attention_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        # batch_size = input_ids.shape[0]
+        # past_key_values = self.get_prompt(batch_size)
+        # prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
+        # attention_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
         
         # segmented: [max_n_segments, batch_size, segment_size]
-        segmented = self.pad_and_segment(input_ids)
+        # !!! Note: the batch_size is not the same as the input batch_size
+        segmented = self.pad_and_segment(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
+        )
         
         # NOTE: why???
         # if self.pre_seq_len == 0:
         #     segmented = segmented[-1:]
         
         model_outputs = []
-        for seg_num, segment_input_ids in enumerate(segmented):
+        for seg_num, segment in enumerate(zip(*segmented)):
+            in_ids, attn_mask, l = segment
+            # TODO: can't control the number of gradient accumulation steps now
             if self.config.bptt_depth != -1:
                 raise NotImplementedError
+            
+            # add prefix prompt
+            batch_size = in_ids.shape[0]
+            past_key_values = self.get_prompt(batch_size)
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
+            attn_mask = torch.cat([prefix_attention_mask, segment])
+            
+            seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
+            if sum(non_empty_mask) == 0:
+                continue
+            
+            out = self.model(**seg_kwargs)
+            
+            self.prefix_tokens = out.last_hidden_state[:, :self.pre_seq_len]
 
     def generate(self):
         raise NotImplementedError
     
-    
+# prefix-propagation version
 class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config):
         super().__init__(config)
 
 
 # ============================================
-# MODIFIED from transformers.modeling_t5.py
+# ================ T5 model ==================
 # ============================================
