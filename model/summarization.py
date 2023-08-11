@@ -44,36 +44,27 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         # self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         # self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
         
-        # MODIFIED
-        # Start
-        self.set_params(
-            tokenizer=tokenizer,
-            config=config
-        )
+        self.config = config
+        self.extract_special_tokens(tokenizer)
+        self.pre_seq_len = config.pre_seq_len
+        self.n_layer = config.num_hidden_layers
+        self.n_head = config.num_attention_heads
+        self.n_embd = config.hidden_size // config.num_attention_heads
+        # self.extend_word_embeddings(config.pre_seq_len, tokenizer)
+        
+        # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
+        self.segment_size = config.input_size - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
+        if 'sep_token' in tokenizer.special_tokens_map:
+            self.segment_size -= 1
         
         # TODO: forget some part of long range memory and add new memory
-        # 
-        # End
-        
-        # https://github.com/huggingface/transformers/issues/4701
-        # if we use BartPrefixForConditionalGeneration.from_pretrained() to load the model, 
-        # it will not overwrite the pretrained weights of the model
-        # Initialize weights and apply final processing
-        # self.post_init()
-        
-        # MODIFIED
-        # Start
+
         for param in self.model.parameters():
             param.requires_grad = False
         
         for param in self.lm_head.parameters():
             param.requires_grad = False
-            
-        self.pre_seq_len = config.pre_seq_len
-        self.n_layer = config.num_hidden_layers
-        self.n_head = config.num_attention_heads
-        self.n_embd = config.hidden_size // config.num_attention_heads
-        
+
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
         self.prefix_encoder = PrefixEncoder(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -209,17 +200,6 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         segmented_batch_labels = [[sample[seg_num] for sample in segmented_batch_labels]
                                   for seg_num in range(self.config.max_n_segments)]
         return segmented_batch, segmented_batch_attention_masks, segmented_batch_labels
-    # End
-    
-    def set_params(self, tokenizer, config):
-        self.config = config 
-        self.extract_special_tokens(tokenizer)
-        # self.extend_word_embeddings(config['pre_seq_len'], tokenizer)
-        
-        # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
-        self.segment_size = config['input_size'] - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
-        if 'sep_token' in tokenizer.special_tokens_map:
-            self.segment_size -= 1
         
     def extract_special_tokens(self, tokenizer):
         self.pad_token_id = tokenizer.pad_token_id
