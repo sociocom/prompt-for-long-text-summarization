@@ -185,3 +185,10 @@ custom_config = CustomBartConfig(
     pre_seq_len=
 )
 ```
+
+#### past_key_values()
+* 如果要求past_key_values + input_ids 的长度和attention_mask相等就很麻烦了
+* 到底是怎么实现的呢
+
+#### decoder_input_ids
+* 一般需要使用labels 而且注意一定要以eos_token开头

@@ -61,6 +61,7 @@ class CustomBartConfig(BartConfig):
                  hidden_dropout_prob=0.1,
                  segment_alignment='left',
                  sum_token_size=0,
+                 label_max_size=142,
                  **kwargs):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
@@ -71,7 +72,8 @@ class CustomBartConfig(BartConfig):
         self.hidden_dropout_prob = hidden_dropout_prob # dropout for prefix encoder
         self.segment_alignment = segment_alignment # how to segment the input sequence
         self.sum_token_size = sum_token_size # the size of summary tokens
-
+        self.label_max_size = label_max_size # the max size of labels
+        
 # Another method to custom BartConfig
 # existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
 
@@ -144,7 +146,9 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
 
     def get_prompt(self, batch_size):
+        # get last_hidden_state as prompt
         prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.model.device)
+            
         past_key_values = self.prefix_encoder(prefix_tokens)
         bsz, seqlen, _ = past_key_values.shape
         past_key_values = past_key_values.view(
@@ -233,10 +237,11 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             input_segments = [seq[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
             input_segments = [self.pad_add_special_tokens(t, self.config.input_size) for t in input_segments]
             
+            # TODO: dynamic segment size
             # add empty segment markers if needed
             n_empty_segments = self.config.max_n_segments - len(input_segments)
             # input_segments:
-            input_segments = [None] * n_empty_segments + input_segments
+            input_segments = input_segments + [None] * n_empty_segments
             
             # segmented_batch: 
             segmented_batch.append(input_segments)
@@ -244,14 +249,14 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             if attn_mask is not None:
                 attn_mask_segments = [attn_mask[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
                 attn_mask_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='attention_mask') for t in attn_mask_segments]
-                attn_mask_segments = [None] * n_empty_segments + attn_mask_segments
+                attn_mask_segments = attn_mask_segments + [None] * n_empty_segments
                 segmented_batch_attention_masks.append(attn_mask_segments)
             
             # TODO: labels need to be segmented by other rules
             if label is not None:
                 labels_segments = [label[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
                 labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
-                labels_segments = [None] * n_empty_segments + labels_segments
+                labels_segments = labels_segments + [None] * n_empty_segments
                 segmented_batch_labels.append(labels_segments)
                 
         segmented_batch = [[sample[seg_num] for sample in segmented_batch] 
@@ -310,7 +315,9 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                 input_elements += [mask_value, prompt_attention_mask, mask_value, tensor, mask_value]
             # As a encoder-decoder model：is not needed to add prompt to labels
             elif add_to == 'labels':
-                input_elements += [self.cls_token, tensor, self.sep_token]
+                # NOTE: for Seq2Seq Models labels are used for decoder_input_ids in training
+                # and decoder_input_ids must start with the eos_token
+                input_elements += [self.eos_token, tensor, self.sep_token]
         # For prefix-tuning/p-tuning v2
         else:
             if add_to == 'input_ids':
@@ -319,7 +326,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                 mask_value = torch.ones((1), device=tensor.device)
                 input_elements += [mask_value, tensor, mask_value]
             elif add_to == 'labels':
-                input_elements += [self.cls_token, tensor, self.sep_token]
+                input_elements += [self.eos_token, tensor, self.sep_token]
         tensor = torch.cat(input_elements)
         
         # Add padding tokens
@@ -341,7 +348,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         #       maybe need to add other special tokens
     
     def prepare_kwargs(self, segment, kwargs):
-        segment_input_ids, segment_attention_masks, segment_labels = segment
+        segment_input_ids, segment_attention_mask, segment_label = segment
         seg_kwargs = dict(**kwargs)
         
         # [sample1_seg1, sample2_seg1, sample3_seg1,....] up to batch_size
@@ -351,24 +358,35 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         if sum(non_empty_mask) == 0:
             return None, non_empty_mask
         
+        # convert list to tensor
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
-        input_embeds = self.model.embeddings(input_ids)
+        # input_embeds = self.model.embeddings(input_ids)
 
         
-        seg_kwargs['input_ids'] = None
-        seg_kwargs['inputs_embeds'] = input_embeds
-        seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
+        seg_kwargs['input_ids'] = input_ids
+        # seg_kwargs['inputs_embeds'] = input_embeds
+        
+        # generate prompts 
+        batch_size = input_ids.shape[0]
+        past_key_values = self.get_prompt(batch_size)
+        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
+        attention_mask = torch.stack([s for s in segment_attention_mask if s is not None])
+        # TODO: attn_mask 应该怎么处理呢？ 如果cat了就会形状不匹配
+        attn_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        seg_kwargs['attention_mask'] = attention_mask
+        
         # if seg_kwargs.get('token_type_ids') is not None:
         #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
-        if seg_kwargs['labels'] is not None:
-            seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_labels, non_empty_mask) if m])
+        if seg_kwargs['decoder_input_ids'] is not None:
+            seg_kwargs['decoder_input_ids'] = torch.stack([el for el, m in zip(segment_label, non_empty_mask) if m])
         
         # if seg_kwargs['labels_mask'] is not None:
         # seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
         # if seg_kwargs.get('token_type_ids') is not None:
         #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
-        seg_kwargs['output_hidden_states'] = True
+        # seg_kwargs['output_hidden_states'] = True
         
+        seg_kwargs['past_key_values'] = past_key_values
         return seg_kwargs, non_empty_mask
         
     def get_attention_mask(self, tensor):
@@ -392,7 +410,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = True, # NOTE: set default to True
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, Seq2SeqLMOutput]:
         r"""
@@ -408,8 +426,10 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             # 'token_type_ids': token_type_ids,
             # 'position_ids': position_ids, 
             'inputs_embeds': inputs_embeds,
-            'labels': labels, 'output_attentions': output_attentions,
-            'output_hidden_states': output_hidden_states, 'return_dict': return_dict,
+            'decoder_input_ids': labels, # NOTE: labels is used as decoder_input_ids
+            'output_attentions': output_attentions,
+            'output_hidden_states': output_hidden_states, 
+            'return_dict': return_dict,
         }
         
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -448,19 +468,15 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             if self.config.bptt_depth != -1:
                 raise NotImplementedError
             
-            # add prefix prompt
-            batch_size = in_ids.shape[0]
-            past_key_values = self.get_prompt(batch_size)
-            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
-            attn_mask = torch.cat([prefix_attention_mask, segment])
-            
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
             
             out = self.model(**seg_kwargs)
             
-            self.prefix_tokens = out.last_hidden_state[:, :self.pre_seq_len]
+            self.prefix_tokens = out.encoder_last_hidden_state[:, 1:self.pre_seq_len+1]
+            # self.prefix_tokens = out.last_hidden_state[:, :self.pre_seq_len]
+            print("prefix_tokens: ", self.prefix_tokens.shape)
 
     def generate(self):
         raise NotImplementedError
