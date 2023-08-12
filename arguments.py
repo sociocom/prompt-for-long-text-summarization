@@ -2,7 +2,7 @@
 # config.max_n_segments
 # config.segment_alignment
 from transformers import HfArgumentParser
-
+from transformers import BartConfig
 kwargs = {
     "pre_seq_len": 20,
     "input_size": 512,
@@ -10,8 +10,29 @@ kwargs = {
     "max_n_segments": 3,
     "bptt_depth": 2,
     "prefix_projection" : False,
-    "dropout": 0.1,
 }
+
+def init_custom_config(custom_kwargs):
+    bart_config = BartConfig.from_pretrained('facebook/bart-large-cnn')
+    custom_config = BartConfig(**bart_config.to_dict(), **custom_kwargs)
+    return custom_config
+# from transformers import BartConfig, BartForConditionalGeneration
+
+# # 现有的 BartConfig 对象
+# existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
+
+# # 自定义参数作为 kwargs
+# custom_kwargs = {
+#     "my_custom_parameter": "abc",
+# }
+
+# # 创建新的配置对象并传递自定义参数
+# new_config = BartConfig(**existing_config.to_dict(), **custom_kwargs)
+
+# # 输出新配置对象的属性
+# print(new_config.test)
+# model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn', config=new_config)
+# model, model.config
 
 def set_args(args, kwargs):
     raise NotImplementedError

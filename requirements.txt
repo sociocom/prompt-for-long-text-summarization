@@ -5,4 +5,9 @@ transformers[torch]
 seqeval
 gpytorch
 evaluate
+
+# required for hyper search
+optuna
+sigopt
 wandb
+ray[tune] 
