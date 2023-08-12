@@ -11,9 +11,8 @@ from typing import List, Optional, Tuple, Union
 from transformers import (
     BartForConditionalGeneration, 
     T5ForConditionalGeneration,
-    # GPT2ForConditionalGeneration,
 )
-from transformers import BartConfig, T5Config, GPT2Config
+from transformers import BartConfig, T5Config
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
@@ -36,20 +35,72 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 
     return shifted_input_ids
 
-
 # ============================================
 # =============== BART model =================
 # ============================================
+
+# CustomBartConfig is used to add some new parameters to BartConfig
+# usage:
+# pretrained_config = AutoConfig.from_pretrained('facebook/bart-base')
+# custom_config = CustomBartConfig(
+#   pre_sqe_len = 10,
+#   ...
+#   **pretrained_config.to_dict(),
+# )
+# ...
+# TODO: print(cumtom_config) will raise Error
+#       but print(custom_config.xxx)| print(custom_config.to_dict()) is ok
+# TODO：need to rewrite __str__ method
+class CustomBartConfig(BartConfig):
+    def __init__(self,
+                 pre_seq_len=20,
+                 input_size=512,
+                 max_n_segments=3,
+                 bptt_depth=-1,
+                 prefix_projection=False, 
+                 hidden_dropout_prob=0.1,
+                 segment_alignment='left',
+                 sum_token_size=0,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.pre_seq_len = pre_seq_len
+        self.input_size = input_size
+        self.max_n_segments = max_n_segments
+        self.bptt_depth = bptt_depth
+        self.prefix_projection = prefix_projection # whether to use reparametrization trick
+        self.hidden_dropout_prob = hidden_dropout_prob # dropout for prefix encoder
+        self.segment_alignment = segment_alignment # how to segment the input sequence
+        self.sum_token_size = sum_token_size # the size of summary tokens
+
+# Another method to custom BartConfig
+# existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
+
+# # 自定义参数作为 kwargs
+# custom_kwargs = {
+#     "my_custom_parameter": "custom",
+# }
+
+# # 创建新的配置对象并传递自定义参数
+# new_config = BartConfig(**existing_config.to_dict(), **custom_kwargs)
+
+# # 输出新配置对象的属性
+# print(new_config.test)
+# model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn', config=new_config)
+# model, model.config
+
 
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config: BartConfig, tokenizer):
         super().__init__(config)
+        # copied from BartForConditionalGeneration.__init__()
         # self.model = BartModel(config)
         # self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         # self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+        # self.post_init() will not overwrite the pretrained parameters when using from_pretrained()
         
         self.config = config
+        self.segment_alignment = config.segment_alignment
         self.extract_special_tokens(tokenizer)
         self.pre_seq_len = config.pre_seq_len
         self.n_layer = config.num_hidden_layers
@@ -147,29 +198,34 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             
             # pytorch syntax: element-wise operation
             drop_mask = sum([seq == t for t in self.special_token_ids])
+            # Convert non-zero elements to 1
+            drop_mask = torch.tensor([1 if t != 0 else 0 for t in drop_mask])
             
             # bool type slice for tensor type
             # remove special tokens
             seq = seq[(1 - drop_mask).bool()]
             
             # truncate the sequence to the maximum length
-            seq = seq[:self.config.segment_size * self.config.max_n_segments]
+            seq = seq[:self.segment_size * self.config.max_n_segments]
             
-            if att_mask is not None:
-                att_mask = att_mask[(1-drop_mask).bool()]
-                att_mask = att_mask[:self.config.segment_size * self.config.max_n_segments]
+            if attn_mask is not None:
+                attn_mask_drop_mask = sum([attn_mask == self.pad_token_id])
+                attn_mask = attn_mask[attn_mask_drop_mask.bool()]
+                attn_mask = attn_mask[:self.segment_size * self.config.max_n_segments]
             if label is not None:
-                label = label[(1-drop_mask).bool()]
+                label_drop_mask = sum([label == t for t in self.special_token_ids + [-100]])
+                label_drop_mask = torch.tensor([1 if t != 0 else 0 for t in label_drop_mask])
+                label = label[(1-label_drop_mask).bool()]
                 # TODO：label = label[:self.config.sum_max_size * self.config.max_n_segments]
-                label = label[:self.config.segment_size * self.config.max_n_segments]
+                label = label[:self.segment_size * self.config.max_n_segments]
             
-            align = self.config.segment_alignment
+            align = self.segment_alignment
             if align in {'right', None}:
-                split_inds = (list(range(len(seq), 0, -self.config.segment_size)) + [0])[::-1]
+                split_inds = (list(range(len(seq), 0, -self.segment_size)) + [0])[::-1]
             elif align == 'left':
-                split_inds = list(range(0, len(seq), self.config.segment_size)) + [len(seq)]
+                split_inds = list(range(0, len(seq), self.segment_size)) + [len(seq)]
             elif align == 'center':
-                n_seg = math.ceil(len(seq) / self.config.segment_size)
+                n_seg = math.ceil(len(seq) / self.segment_size)
                 split_inds = list(range(0, len(seq), math.ceil(len(seq) / n_seg))) + [len(seq)]
             else:
                 raise NotImplementedError
@@ -186,13 +242,14 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             segmented_batch.append(input_segments)
             
             if attn_mask is not None:
-                attn_mask_segments = [att_mask[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+                attn_mask_segments = [attn_mask[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
                 attn_mask_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='attention_mask') for t in attn_mask_segments]
                 attn_mask_segments = [None] * n_empty_segments + attn_mask_segments
                 segmented_batch_attention_masks.append(attn_mask_segments)
             
-            if labels is not None:
-                labels_segments = [labels[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+            # TODO: labels need to be segmented by other rules
+            if label is not None:
+                labels_segments = [label[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
                 labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
                 labels_segments = [None] * n_empty_segments + labels_segments
                 segmented_batch_labels.append(labels_segments)
@@ -267,8 +324,8 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         
         # Add padding tokens
         # TODO: implement summary module
-        #       now self.config.sum_size default = 0
-        pad_size = segment_size - tensor.shape[0] - self.config.sum_size
+        #       now config.sum_token_size default = 0
+        pad_size = segment_size - tensor.shape[0] - self.config.sum_token_size
         if pad_size > 0:
             if add_to == 'input_ids':
                 tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
