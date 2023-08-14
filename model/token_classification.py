@@ -1,8 +1,8 @@
+# copied from RMT
 import math
 import torch
 import torch.nn.functional as F
 from .base import RMTBaseModel
-
 
 class RMTEncoderForTokenClassification(RMTBaseModel):
     # todo: move segment looping into RMT class, also move help functions into RMT class

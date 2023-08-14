@@ -16,6 +16,7 @@ from transformers import BartConfig, T5Config
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -38,58 +39,6 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 # ============================================
 # =============== BART model =================
 # ============================================
-
-# CustomBartConfig is used to add some new parameters to BartConfig
-# usage:
-# pretrained_config = AutoConfig.from_pretrained('facebook/bart-base')
-# custom_config = CustomBartConfig(
-#   pre_sqe_len = 10,
-#   ...
-#   **pretrained_config.to_dict(),
-# )
-# ...
-# TODO: print(cumtom_config) will raise Error
-#       but print(custom_config.xxx)| print(custom_config.to_dict()) is ok
-# TODO：need to rewrite __str__ method
-class CustomBartConfig(BartConfig):
-    def __init__(self,
-                 pre_seq_len=20,
-                 input_size=512,
-                 max_n_segments=3,
-                 bptt_depth=-1,
-                 prefix_projection=False, 
-                 hidden_dropout_prob=0.1,
-                 segment_alignment='left',
-                 sum_token_size=0,
-                 label_max_size=142,
-                 **kwargs):
-        super().__init__(**kwargs)
-        self.pre_seq_len = pre_seq_len
-        self.input_size = input_size
-        self.max_n_segments = max_n_segments
-        self.bptt_depth = bptt_depth
-        self.prefix_projection = prefix_projection # whether to use reparametrization trick
-        self.hidden_dropout_prob = hidden_dropout_prob # dropout for prefix encoder
-        self.segment_alignment = segment_alignment # how to segment the input sequence
-        self.sum_token_size = sum_token_size # the size of summary tokens
-        self.label_max_size = label_max_size # the max size of labels
-        
-# Another method to custom BartConfig
-# existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
-
-# # 自定义参数作为 kwargs
-# custom_kwargs = {
-#     "my_custom_parameter": "custom",
-# }
-
-# # 创建新的配置对象并传递自定义参数
-# new_config = BartConfig(**existing_config.to_dict(), **custom_kwargs)
-
-# # 输出新配置对象的属性
-# print(new_config.test)
-# model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn', config=new_config)
-# model, model.config
-
 
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
@@ -371,8 +320,9 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         past_key_values = self.get_prompt(batch_size)
         prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
         attention_mask = torch.stack([s for s in segment_attention_mask if s is not None])
-        # TODO: attn_mask 应该怎么处理呢？ 如果cat了就会形状不匹配
+        # TODO: attn_mask should be concat with decoder_attn_mask instead of attention_mask???
         attn_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        # seg_kwargs['attention_mask'] = attn_mask
         seg_kwargs['attention_mask'] = attention_mask
         
         # if seg_kwargs.get('token_type_ids') is not None:
@@ -434,21 +384,26 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
         
-        if labels is not None:
-            if use_cache:
-                logger.warning("The `use_cache` argument is changed to `False` since `labels` is provided.")
-            use_cache = False
-            if decoder_input_ids is None and decoder_inputs_embeds is None:
-                decoder_input_ids = shift_tokens_right(
-                    labels, self.config.pad_token_id, self.config.decoder_start_token_id
-                )
-                
-        # MODIFIED: add prefix encoder
-        # batch_size = input_ids.shape[0]
-        # past_key_values = self.get_prompt(batch_size)
-        # prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
-        # attention_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        # original version
+        # if labels is not None:
+        #     if use_cache:
+        #         logger.warning("The `use_cache` argument is changed to `False` since `labels` is provided.")
+        #     use_cache = False
+        #     if decoder_input_ids is None and decoder_inputs_embeds is None:
+        #         decoder_input_ids = shift_tokens_right(
+        #             labels, self.config.pad_token_id, self.config.decoder_start_token_id
+        #         )
         
+        # TODO: maybe should move into prepare_kwargs
+        # Auto generate decoder_input_ids and decoder_attention_mask from labels
+        if (labels is not None) and (decoder_input_ids is None and decoder_inputs_embeds is None):
+            decoder_input_ids = shift_tokens_right(
+                labels, self.config.pad_token_id, self.config.decoder_start_token_id
+            )
+            if decoder_attention_mask is not None:
+                raise Exception # some error for passing 1/2 of decoder input_id/attn_mask?
+            decoder_attention_mask = torch.where(decoder_input_ids == self.config.pad_token_id, 0, 1)
+
         # segmented: [max_n_segments, batch_size, segment_size]
         # !!! Note: the batch_size is not the same as the input batch_size
         segmented = self.pad_and_segment(
@@ -472,11 +427,22 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             if sum(non_empty_mask) == 0:
                 continue
             
+            # out -> Seq2SeqLMOutput
+            # loss: Optional[torch.FloatTensor] = None
+            # logits: torch.FloatTensor = None
+            # past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+            # decoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+            # decoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
+            # cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
+            # encoder_last_hidden_state: Optional[torch.FloatTensor] = None
+            # encoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+            # encoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
             out = self.model(**seg_kwargs)
             
             self.prefix_tokens = out.encoder_last_hidden_state[:, 1:self.pre_seq_len+1]
-            # self.prefix_tokens = out.last_hidden_state[:, :self.pre_seq_len]
-            print("prefix_tokens: ", self.prefix_tokens.shape)
+            print("prefix_tokens: ", self.prefix_tokens.shape, self.prefix_tokens)
+            
+            # TODO: process batch output
 
     def generate(self):
         raise NotImplementedError
@@ -485,8 +451,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
 class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
     def __init__(self, config):
         super().__init__(config)
-
-
+        
 # ============================================
 # ================ T5 model ==================
 # ============================================
