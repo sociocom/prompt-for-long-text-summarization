@@ -191,4 +191,5 @@ custom_config = CustomBartConfig(
 * 到底是怎么实现的呢
 
 #### decoder_input_ids
+> see: https://github.com/huggingface/transformers/issues/7865
 * 一般需要使用labels 而且注意一定要以eos_token开头
