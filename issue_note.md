@@ -192,6 +192,9 @@ custom_config = CustomBartConfig(
 
 #### decoder_input_ids
 > see: https://github.com/huggingface/transformers/issues/7865
+
+> and: https://github.com/facebookresearch/fairseq/issues/1389#issuecomment-565947058
+
 * 一般需要使用labels 而且注意一定要以eos_token开头
 
 ## Model Architecture
