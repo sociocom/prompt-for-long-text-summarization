@@ -193,3 +193,8 @@ custom_config = CustomBartConfig(
 #### decoder_input_ids
 > see: https://github.com/huggingface/transformers/issues/7865
 * 一般需要使用labels 而且注意一定要以eos_token开头
+
+## Model Architecture
+### 一：Auto Regressive & Teacher Forcing
+> 引发了exposure bias： [Bridging the Gap between Training and Inference for Neural Machine Translation](https://aclanthology.org/P19-1426/)
+
