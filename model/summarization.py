@@ -190,7 +190,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             # add empty segment markers if needed
             n_empty_segments = self.config.max_n_segments - len(input_segments)
             # input_segments:
-            input_segments = input_segments + [None] * n_empty_segments
+            input_segments = input_segments + [self.get_full_padding_segment()] * n_empty_segments
             
             # segmented_batch: 
             segmented_batch.append(input_segments)
@@ -198,14 +198,14 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             if attn_mask is not None:
                 attn_mask_segments = [attn_mask[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
                 attn_mask_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='attention_mask') for t in attn_mask_segments]
-                attn_mask_segments = attn_mask_segments + [None] * n_empty_segments
+                attn_mask_segments = attn_mask_segments + [self.get_full_padding_segment()] * n_empty_segments
                 segmented_batch_attention_masks.append(attn_mask_segments)
             
             # TODO: labels need to be segmented by other rules
             if label is not None:
                 labels_segments = [label[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
                 labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
-                labels_segments = labels_segments + [None] * n_empty_segments
+                labels_segments = labels_segments + [self.get_full_padding_segment()] * n_empty_segments
                 segmented_batch_labels.append(labels_segments)
                 
         segmented_batch = [[sample[seg_num] for sample in segmented_batch] 
@@ -216,6 +216,10 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
                                   for seg_num in range(self.config.max_n_segments)]
         return segmented_batch, segmented_batch_attention_masks, segmented_batch_labels
         
+    def get_full_padding_segment(self,):
+        padding_segment = torch.tensor([self.pad_token_id for _ in range(self.config.input_size)])
+        return padding_segment
+    
     def extract_special_tokens(self, tokenizer):
         self.pad_token_id = tokenizer.pad_token_id
         self.special_token_ids = [tokenizer.pad_token_id]
