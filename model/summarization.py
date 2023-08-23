@@ -338,7 +338,9 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         # seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
         # if seg_kwargs.get('token_type_ids') is not None:
         #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
-        # seg_kwargs['output_hidden_states'] = True
+        
+        # For our model, we just need to get the last_hidden_state of the last layer
+        # seg_kwargs['output_hidden_states'] = True 
         
         seg_kwargs['past_key_values'] = past_key_values
         return seg_kwargs, non_empty_mask
@@ -364,7 +366,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = True, # NOTE: set default to True
+        output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, Seq2SeqLMOutput]:
         r"""
@@ -443,25 +445,76 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             # encoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
             out = self.model(**seg_kwargs)
             
-            self.prefix_tokens = out.encoder_last_hidden_state[:, 1:self.pre_seq_len+1]
-            print("prefix_tokens: ", self.prefix_tokens.shape, self.prefix_tokens)
+            memory_tokens = out.encoder_last_hidden_state[:, 1:self.pre_seq_len+1]
+            print("memory_tokens: ", memory_tokens.shape)
             
-            # TODO: process batch output
             model_outputs.append(out)
         
-        out = self.process_outputs()
+        out = self.process_outputs(model_outputs, output_attentions, output_hidden_states)
             
     def generate(self,):
         raise NotImplementedError
     
     def process_outputs(self,):
         raise NotImplementedError
-    
+
 # prefix-propagation version
 class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
-    def __init__(self, config):
+    def __init__(self, config, tokenizer):
         super().__init__(config)
+        self.config = config
+        self.segment_alignment = config.segment_alignment
+        self.extract_special_tokens(tokenizer)
+        self.pre_seq_len = config.pre_seq_len
+        self.n_layer = config.num_hidden_layers
+        self.n_head = config.num_attention_heads
+        self.n_embd = config.hidden_size // config.num_attention_heads
+        # self.extend_word_embeddings(config.pre_seq_len, tokenizer)
         
+        # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
+        self.segment_size = config.input_size - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
+        if 'sep_token' in tokenizer.special_tokens_map:
+            self.segment_size -= 1
+        
+        # TODO: forget some part of long range memory and add new memory
+
+        for param in self.model.parameters():
+            param.requires_grad = False
+        
+        for param in self.lm_head.parameters():
+            param.requires_grad = False
+
+        self.prefix_tokens = torch.arange(self.pre_seq_len).long()
+        self.prefix_encoder = PrefixEncoder(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        
+        bart_param = 0
+        lm_head_param = 0
+        all_param = 0
+        
+        # count the number of trainable parameters in bart
+        for name, param in self.model.named_parameters():
+            bart_param += param.numel() # numel() returns the total number of elements in the input tensor
+        for name, param in self.lm_head.named_parameters():
+            lm_head_param += param.numel()
+            
+        for name, param in self.named_parameters():
+            all_param += param.numel()
+            
+        trainable_param = all_param - bart_param - lm_head_param
+        
+        print("Total parameters: {:,}".format(all_param))
+        print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
+    
+    def get_prompt(self, batch_size, memory=None):
+        if memory is not None:
+            prompts = self.prefix_encoder(memory)
+        else: 
+            prefix_tokens = (
+                self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.model.device)
+            )
+            prompts = self.prefix_encoder(prefix_tokens)
+        return prompts
 # ============================================
 # ================ T5 model ==================
 # ============================================
