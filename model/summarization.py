@@ -447,8 +447,14 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
             print("prefix_tokens: ", self.prefix_tokens.shape, self.prefix_tokens)
             
             # TODO: process batch output
-
-    def generate(self):
+            model_outputs.append(out)
+        
+        out = self.process_outputs()
+            
+    def generate(self,):
+        raise NotImplementedError
+    
+    def process_outputs(self,):
         raise NotImplementedError
     
 # prefix-propagation version
