@@ -455,7 +455,7 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
     def generate(self,):
         raise NotImplementedError
     
-    def process_outputs(self,):
+    def process_outputs(self, model_outputs, output_attentions, output_hidden_states):
         raise NotImplementedError
 
 # prefix-propagation version
