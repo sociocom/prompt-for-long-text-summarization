@@ -9,8 +9,12 @@ import math
 from typing import List, Optional, Tuple, Union
 
 from transformers import (
-    BartForConditionalGeneration, 
-    T5ForConditionalGeneration,
+    BartModel,
+    BartPretrainedModel,
+    BartTokenizer,
+    T5Model,
+    T5PretrainedModel,
+    T5Tokenizer,
 )
 from transformers import BartConfig, T5Config
 from transformers.modeling_outputs import Seq2SeqLMOutput
@@ -41,8 +45,8 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 # ============================================
 
 # prefix-tuning/p-tuning v2 version
-class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
-    def __init__(self, config: BartConfig, tokenizer):
+class BartPrefixForConditionalGeneration(BartPretrainedModel):
+    def __init__(self, config, checkpoint):
         super().__init__(config)
         # copied from BartForConditionalGeneration.__init__()
         # self.model = BartModel(config)
@@ -50,9 +54,11 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         # self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
         # self.post_init() will not overwrite the pretrained parameters when using from_pretrained()
         
+        self.model = BartModel.from_pretrained(checkpoint)
+        self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
         self.config = config
         self.segment_alignment = config.segment_alignment
-        self.extract_special_tokens(tokenizer)
+        self.extract_special_tokens(self.tokenizer)
         self.pre_seq_len = config.pre_seq_len
         self.n_layer = config.num_hidden_layers
         self.n_head = config.num_attention_heads
@@ -60,36 +66,30 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         # self.extend_word_embeddings(config.pre_seq_len, tokenizer)
         
         # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
-        self.segment_size = config.input_size - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
-        if 'sep_token' in tokenizer.special_tokens_map:
+        self.segment_size = config.input_size - self.pre_seq_len - self.tokenizer.num_special_tokens_to_add()
+        if 'sep_token' in self.tokenizer.special_tokens_map:
             self.segment_size -= 1
         
         # TODO: forget some part of long range memory and add new memory
 
         for param in self.model.parameters():
             param.requires_grad = False
-        
-        for param in self.lm_head.parameters():
-            param.requires_grad = False
 
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
         self.prefix_encoder = PrefixEncoder(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
-        bart_param = 0
-        lm_head_param = 0
+        model_param = 0
         all_param = 0
         
         # count the number of trainable parameters in bart
         for name, param in self.model.named_parameters():
-            bart_param += param.numel() # numel() returns the total number of elements in the input tensor
-        for name, param in self.lm_head.named_parameters():
-            lm_head_param += param.numel()
+            model_param += param.numel() # numel() returns the total number of elements in the input tensor
             
         for name, param in self.named_parameters():
             all_param += param.numel()
             
-        trainable_param = all_param - bart_param - lm_head_param
+        trainable_param = all_param - model_param
         
         print("Total parameters: {:,}".format(all_param))
         print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
@@ -459,12 +459,15 @@ class BartPrefixForConditionalGeneration(BartForConditionalGeneration):
         raise NotImplementedError
 
 # prefix-propagation version
-class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
-    def __init__(self, config, tokenizer):
+class BartPrefixPropForConditionalGeneration(BartPretrainedModel):
+    def __init__(self, config, checkpoint):
         super().__init__(config)
+        self.model = BartModel.from_pretrained(checkpoint)
+        self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
+        
         self.config = config
         self.segment_alignment = config.segment_alignment
-        self.extract_special_tokens(tokenizer)
+        self.extract_special_tokens(self.tokenizer)
         self.pre_seq_len = config.pre_seq_len
         self.n_layer = config.num_hidden_layers
         self.n_head = config.num_attention_heads
@@ -472,36 +475,30 @@ class BartPrefixPropForConditionalGeneration(BartForConditionalGeneration):
         # self.extend_word_embeddings(config.pre_seq_len, tokenizer)
         
         # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
-        self.segment_size = config.input_size - self.pre_seq_len - tokenizer.num_special_tokens_to_add()
-        if 'sep_token' in tokenizer.special_tokens_map:
+        self.segment_size = config.input_size - self.pre_seq_len - self.tokenizer.num_special_tokens_to_add()
+        if 'sep_token' in self.tokenizer.special_tokens_map:
             self.segment_size -= 1
         
         # TODO: forget some part of long range memory and add new memory
 
         for param in self.model.parameters():
             param.requires_grad = False
-        
-        for param in self.lm_head.parameters():
-            param.requires_grad = False
 
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
         self.prefix_encoder = PrefixEncoder(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
-        bart_param = 0
-        lm_head_param = 0
+        model_param = 0
         all_param = 0
         
         # count the number of trainable parameters in bart
         for name, param in self.model.named_parameters():
-            bart_param += param.numel() # numel() returns the total number of elements in the input tensor
-        for name, param in self.lm_head.named_parameters():
-            lm_head_param += param.numel()
+            model_param += param.numel() # numel() returns the total number of elements in the input tensor
             
         for name, param in self.named_parameters():
             all_param += param.numel()
             
-        trainable_param = all_param - bart_param - lm_head_param
+        trainable_param = all_param - model_param
         
         print("Total parameters: {:,}".format(all_param))
         print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
