@@ -6,7 +6,7 @@ from torch.nn import CrossEntropyLoss
 import logging
 import copy
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Iterable
 
 from transformers import (
     BartPretrainedModel,
@@ -305,19 +305,21 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
         seg_kwargs['input_ids'] = input_ids
         
-        seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
+        if segment_attention_mask is not None:
+            seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
         
         if seg_kwargs['labels'] is not None:
             seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_label, non_empty_mask) if m])
         
-        # generate prompts 
-        batch_size = input_ids.shape[0]
-        past_key_values = self.get_prompt(batch_size)
-        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
-        attention_mask = torch.stack([s for s in segment_attention_mask if s is not None])
-        attn_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
+        # # generate prompts 
+        # batch_size = input_ids.shape[0]
+        # past_key_values = self.get_prompt(batch_size)
+        # prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
+        # if segment_attention_mask is not None:
+            # attention_mask = torch.stack([s for s in segment_attention_mask if s is not None])
+            # attn_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
         # seg_kwargs['attention_mask'] = attn_mask
-        seg_kwargs['past_key_values'] = past_key_values
+        # seg_kwargs['past_key_values'] = past_key_values
         
         return seg_kwargs, non_empty_mask
         
@@ -407,53 +409,43 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         out = self.process_outputs(input_ids, model_outputs, output_attentions, output_hidden_states)
         return out
         
+    @torch.no_grad()
     def generate(
         self,
-        input_ids: torch.LongTensor = None,
-        attention_mask: Optional[torch.Tensor] = None,
-        decoder_input_ids: Optional[torch.LongTensor] = None,
-        decoder_attention_mask: Optional[torch.LongTensor] = None,
-        head_mask: Optional[torch.Tensor] = None,
-        decoder_head_mask: Optional[torch.Tensor] = None,
-        cross_attn_head_mask: Optional[torch.Tensor] = None,
-        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
-        inputs_embeds: Optional[torch.FloatTensor] = None,
-        decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
-        labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
-        num_beams: Optional[int] = None,
-        min_length: Optional[int] = None,
+        input_ids: Optional[torch.LongTensor] = None,
         max_length: Optional[int] = None,
-    ) -> Union[Tuple, Seq2SeqLMOutput]:
-        # Auto generate decoder_input_ids and decoder_attention_mask from labels
-        if (labels is not None) and (decoder_input_ids is None and decoder_inputs_embeds is None):
-            decoder_input_ids = shift_tokens_right(
-                labels, self.config.pad_token_id, self.config.decoder_start_token_id
-            )
-            if decoder_attention_mask is not None:
-                raise Exception # some error for passing 1/2 of decoder input_id/attn_mask?
-            decoder_attention_mask = torch.where(decoder_input_ids == self.config.pad_token_id, 0, 1)
-            
+        min_length: Optional[int] = None,
+        do_sample: Optional[bool] = None,
+        early_stopping: Optional[bool] = None,
+        num_beams: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
+        bad_words_ids: Optional[Iterable[int]] = None,
+        bos_token_id: Optional[int] = None,
+        pad_token_id: Optional[int] = None,
+        eos_token_id: Optional[int] = None,
+        length_penalty: Optional[float] = None,
+        no_repeat_ngram_size: Optional[int] = None,
+        num_return_sequences: Optional[int] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_start_token_id: Optional[int] = None,
+        use_cache: Optional[bool] = None,
+        **model_specific_kwargs
+    ) -> torch.LongTensor:
+
         kwargs = {
-            'attention_mask': attention_mask, 
-            'inputs_embeds': inputs_embeds,
-            'labels': labels, 
-            'output_attentions': output_attentions,
-            'output_hidden_states': output_hidden_states, 
-            'return_dict': return_dict,
+            'input_ids': input_ids,
             'num_beams': num_beams,
             'min_length': min_length,
             'max_length': max_length,
+            'labels': None,
+            'attention_mask': None
         }
         
         segmented = self.pad_and_segment(
             input_ids=input_ids,
-            attention_mask=attention_mask,
-            labels=labels,
         )
         
         model_outputs = []
@@ -467,12 +459,7 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             if sum(non_empty_mask) == 0:
                 continue
             
-            out = self.model.generate(
-                input_ids=seg_kwargs['input_ids'],
-                min_length=seg_kwargs['min_length'],
-                max_length=seg_kwargs['max_length'],
-                num_beams=seg_kwargs['num_beams'],
-            )
+            out = self.model.generate(**seg_kwargs)
             model_outputs.append(out)
 
         print("model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
