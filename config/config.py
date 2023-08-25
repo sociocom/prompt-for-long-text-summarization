@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from transformers import BartConfig, T5Config
+from transformers import BartConfig
 
 # ============================================
 # =============== BART model =================
@@ -28,6 +28,7 @@ class PromptBartConfig(BartConfig):
                  segment_alignment='left',
                  sum_token_size=0,
                  label_max_size=142,
+                 sum_loss=True,
                  **kwargs):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
@@ -39,6 +40,7 @@ class PromptBartConfig(BartConfig):
         self.segment_alignment = segment_alignment # how to segment the input sequence
         self.sum_token_size = sum_token_size # the size of summary tokens
         self.label_max_size = label_max_size # the max size of labels
+        self.sum_loss = sum_loss # whether to use summary loss
         
 # Another method to custom BartConfig
 # existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
@@ -55,6 +57,3 @@ class PromptBartConfig(BartConfig):
 # print(new_config.test)
 # model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn', config=new_config)
 # model, model.config
-
-class PromptT5Config():
-    raise NotImplementedError
