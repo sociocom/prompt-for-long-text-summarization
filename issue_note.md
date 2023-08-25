@@ -232,3 +232,7 @@ custom_config = CustomBartConfig(
 ### 一：Auto Regressive & Teacher Forcing
 > 引发了exposure bias： [Bridging the Gap between Training and Inference for Neural Machine Translation](https://aclanthology.org/P19-1426/)
 
+
+## Debug记录
+1. decoder_input_ids出现out of index: decoder_input_ids必须以eos开头
+2. decoder_input_ids不需要手动生成, 模型会自动从labels转换
