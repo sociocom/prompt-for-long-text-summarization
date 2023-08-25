@@ -303,36 +303,22 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         
         # convert list to tensor
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
-        # input_embeds = self.model.embeddings(input_ids)
-
         seg_kwargs['input_ids'] = input_ids
-        # seg_kwargs['inputs_embeds'] = input_embeds
         
-        if seg_kwargs['decoder_input_ids'] is not None:
-            seg_kwargs['decoder_input_ids'] = seg_kwargs['decoder_input_ids'][non_empty_mask]
+        seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
+        
+        if seg_kwargs['labels'] is not None:
+            seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_label, non_empty_mask) if m])
         
         # generate prompts 
         batch_size = input_ids.shape[0]
         past_key_values = self.get_prompt(batch_size)
         prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len)
         attention_mask = torch.stack([s for s in segment_attention_mask if s is not None])
-        # TODO: attn_mask should be concat with decoder_attn_mask instead of attention_mask???
         attn_mask = torch.cat([prefix_attention_mask, attention_mask], dim=1)
         # seg_kwargs['attention_mask'] = attn_mask
-        seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
-        
-        # if seg_kwargs.get('token_type_ids') is not None:
-        #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
-
-        # if seg_kwargs['labels_mask'] is not None:
-        # seg_kwargs['labels_mask'] = torch.stack([el for el, m in zip(segment_labels_mask, non_empty_mask) if m])
-        # if seg_kwargs.get('token_type_ids') is not None:
-        #     seg_kwargs['token_type_ids'] = self.get_token_type_ids(input_ids)
-        
-        # For our model, we just need to get the last_hidden_state of the last layer
-        # seg_kwargs['output_hidden_states'] = True 
-        
         seg_kwargs['past_key_values'] = past_key_values
+        
         return seg_kwargs, non_empty_mask
         
     def get_attention_mask(self, tensor):
@@ -367,38 +353,16 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
 
         Returns:
         """ 
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
         kwargs = {
             'attention_mask': attention_mask, 
-            # 'token_type_ids': token_type_ids,
-            # 'position_ids': position_ids, 
             'inputs_embeds': inputs_embeds,
-            'decoder_input_ids': labels, # NOTE: labels is used as decoder_input_ids
+            'labels': labels, 
             'output_attentions': output_attentions,
             'output_hidden_states': output_hidden_states, 
             'return_dict': return_dict,
         }
-        
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
-        # original version
-        # if labels is not None:
-        #     if use_cache:
-        #         logger.warning("The `use_cache` argument is changed to `False` since `labels` is provided.")
-        #     use_cache = False
-        #     if decoder_input_ids is None and decoder_inputs_embeds is None:
-        #         decoder_input_ids = shift_tokens_right(
-        #             labels, self.config.pad_token_id, self.config.decoder_start_token_id
-        #         )
-        
-        # TODO: maybe should move into prepare_kwargs
-        # Auto generate decoder_input_ids and decoder_attention_mask from labels
-        if (labels is not None) and (decoder_input_ids is None and decoder_inputs_embeds is None):
-            decoder_input_ids = shift_tokens_right(
-                labels, self.config.pad_token_id, self.config.decoder_start_token_id
-            )
-            if decoder_attention_mask is not None:
-                raise Exception # some error for passing 1/2 of decoder input_id/attn_mask?
-            decoder_attention_mask = torch.where(decoder_input_ids == self.config.pad_token_id, 0, 1)
 
         # segmented: [max_n_segments, batch_size, segment_size]
         # !!! Note: the batch_size is not the same as the input batch_size
@@ -440,7 +404,7 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             
             model_outputs.append(out)
         
-        out = self.process_outputs(model_outputs, output_attentions, output_hidden_states)
+        out = self.process_outputs(input_ids, model_outputs, output_attentions, output_hidden_states)
         return out
         
     def generate(
@@ -476,10 +440,8 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             
         kwargs = {
             'attention_mask': attention_mask, 
-            # 'token_type_ids': token_type_ids,
-            # 'position_ids': position_ids, 
             'inputs_embeds': inputs_embeds,
-            'decoder_input_ids': labels, # NOTE: labels is used as decoder_input_ids
+            'labels': labels, 
             'output_attentions': output_attentions,
             'output_hidden_states': output_hidden_states, 
             'return_dict': return_dict,
@@ -515,34 +477,42 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
 
         print("model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
         
-    def process_outputs(self, model_outputs, output_attentions, output_hidden_states):
+    def process_outputs(self, input_ids, model_outputs, output_attentions, output_hidden_states):
         out = model_outputs[-1] # get the last segment output
         
-        segment_keys = ['loss']
-        if output_attentions:
-            segment_keys.append('attentions')
-        if output_hidden_states:
-            segment_keys.append('hidden_states')
-            
-        extracted = {}
-        for seg_num, out in enumerate(model_outputs):
-            for key, value in out.items():
-                if any([sk in key for sk in segment_keys]):
-                    extracted[f'{key}_{seg_num}'] = value
+        bs, seq_len = input_ids.shape
         
-        if self.config.sum_loss:
-            losses = [o['loss'] for o in model_outputs]
-            extracted['loss'] = torch.stack(losses).mean(dim=0)
-            
-        for key, value in extracted.items():
-            out[key] = value
+        losses = []
+        logits = []
+        labels_segm = []
         
-        # drop unnecessary hiddens to save memory
+        for out in model_outputs:
+            losses.append(out['loss'])
+            logits.append(out['logits'].detach())
+            labels_segm += [out['seg_kwargs']['labels']]
+        
         if not output_hidden_states:
             for key in out.keys():
                 if 'hidden_state' in key:
                     out[key] = None
                     
+        for i, l in enumerate(losses):
+            out[f'loss_{i}'] = l.mean()
+            
+        out['loss'] = torch.stack(losses).mean()
+        
+        for i in range(len(logits)):
+            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, bs - labels_segm[i].shape[0]), value=-100)
+        
+        out['logits'] = torch.cat(logits, dim=1)
+        # Warning: rmt logits, labels, masks are not in the same order as in input data:
+        # the first dimension is number of segments!
+        # so, torch.cat will result in segm0, segm0,.. and only after all segm0 will come segm1, ... .
+        # not segm0, segm1, segm0, segm1 as in input data
+        out['logits_segm'] = [logits]
+        out['labels_segm'] = [labels_segm]
+        
         return out
 # prefix-propagation version
 class BartPrefixPropForConditionalGeneration(BartPretrainedModel):
