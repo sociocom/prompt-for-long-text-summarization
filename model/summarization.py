@@ -156,7 +156,9 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             
             # TODO: labels need to be segmented by other rules
             if label is not None:
-                labels_segments = [label[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+                # full_segment_size = len(input_segments)
+                end_index = math.ceil(len(label) // (full_segment_size := len(input_segments)))
+                labels_segments = [label[:(end_index*(i+1))] for i in range(full_segment_size)]
                 labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
                 labels_segments = labels_segments + [self.get_full_padding_segment()] * n_empty_segments
                 segmented_batch_labels.append(labels_segments)
