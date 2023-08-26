@@ -47,7 +47,7 @@ def main():
     label_column = 'highlights'
     lr = 3e-3
     num_epochs = 10
-    batch_size = 8
+    batch_size = 16
     seed = 42
     do_test = True
     set_seed(seed)
@@ -92,9 +92,9 @@ def main():
     accelerator.wait_for_everyone()
         # ================================== 2.3 数据加载器 ======================================
     # 计算需要取出的样本数量
-    train_size = int(len(cnn_dataset["train"]) * 0.001)
-    eval_size = int(len(cnn_dataset["validation"]) * 0.01)
-    test_size = int(len(cnn_dataset["test"]) * 0.01)
+    train_size = int(len(cnn_dataset["train"]) * 0.1)
+    eval_size = int(len(cnn_dataset["validation"]) * 0.1)
+    test_size = int(len(cnn_dataset["test"]) * 0.1)
 
     # 从打乱后的数据集中随机抽取指定数量的数据
     train_dataset = cnn_dataset["train"].shuffle(seed=42).select(range(train_size))
@@ -222,7 +222,7 @@ def main():
         accelerator.print(f"{epoch=}: {eval_ppl=} {eval_epoch_loss=}")      
           
         # ================================== 5. 评估测试集 ======================================
-        if do_test := True:
+        if do_test := False:
             if (epoch+1) % 1 == 0:
                 model.eval()
                 rouge_metric = evaluate.load("rouge")
