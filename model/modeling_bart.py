@@ -23,8 +23,8 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
-from ...activations import ACT2FN
-from ...modeling_outputs import (
+from transformers import activations
+from transformers.modeling_outputs import (
     BaseModelOutput,
     BaseModelOutputWithPastAndCrossAttentions,
     CausalLMOutputWithCrossAttentions,
@@ -33,8 +33,8 @@ from ...modeling_outputs import (
     Seq2SeqQuestionAnsweringModelOutput,
     Seq2SeqSequenceClassifierOutput,
 )
-from ...modeling_utils import PreTrainedModel
-from ...utils import (
+from transformers.modeling_utils import PreTrainedModel
+from transformers.utils import (
     add_code_sample_docstrings,
     add_end_docstrings,
     add_start_docstrings,
@@ -42,7 +42,7 @@ from ...utils import (
     logging,
     replace_return_docstrings,
 )
-from .configuration_bart import BartConfig
+from transformers import BartConfig
 
 
 logger = logging.get_logger(__name__)
@@ -304,7 +304,7 @@ class BartEncoderLayer(nn.Module):
         )
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.dropout = config.dropout
-        self.activation_fn = ACT2FN[config.activation_function]
+        self.activation_fn = activations.ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
         self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
@@ -373,7 +373,7 @@ class BartDecoderLayer(nn.Module):
             is_decoder=True,
         )
         self.dropout = config.dropout
-        self.activation_fn = ACT2FN[config.activation_function]
+        self.activation_fn = activations.ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
 
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
@@ -1402,7 +1402,8 @@ class BartForConditionalGeneration(BartPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-
+        print('outputs detail for self.model:', outputs.keys())
+        print('past_key_values:', past_key_values)
         lm_logits = self.lm_head(outputs[0])
         lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
 

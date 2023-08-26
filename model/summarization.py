@@ -14,7 +14,8 @@ from transformers import (
     BartTokenizer,
 )
 from transformers import BartConfig
-from transformers.modeling_outputs import Seq2SeqLMOutput
+from peft import PrefixTuningConfig, TaskType, get_peft_model
+from transformers import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
 from config import config
@@ -43,10 +44,11 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartPretrainedModel):
-    def __init__(self, config, checkpoint):
+    def __init__(self, checkpoint, config, peft_config):
         super().__init__(config)
 
-        self.model = BartForConditionalGeneration.from_pretrained(checkpoint)
+        bart_model = BartForConditionalGeneration.from_pretrained(checkpoint)
+        self.model = get_peft_model(bart_model, peft_config)
         self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
         self.config = config
         self.segment_alignment = config.segment_alignment
@@ -63,46 +65,6 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             self.segment_size -= 1
         
         # TODO: forget some part of long range memory and add new memory
-
-        for param in self.model.parameters():
-            param.requires_grad = False
-
-        self.prefix_tokens = torch.arange(self.pre_seq_len).long()
-        self.prefix_encoder = PrefixEncoder(config)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        
-        model_param = 0
-        all_param = 0
-        
-        # count the number of trainable parameters in bart
-        for name, param in self.model.named_parameters():
-            model_param += param.numel() # numel() returns the total number of elements in the input tensor
-            
-        for name, param in self.named_parameters():
-            all_param += param.numel()
-            
-        trainable_param = all_param - model_param
-        
-        print("Total parameters: {:,}".format(all_param))
-        print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
-
-    def get_prompt(self, batch_size):
-        # get last_hidden_state as prompt
-        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.model.device)
-            
-        past_key_values = self.prefix_encoder(prefix_tokens)
-        bsz, seqlen, _ = past_key_values.shape
-        past_key_values = past_key_values.view(
-            bsz,
-            seqlen,
-            self.n_layer * 2,
-            self.n_head,
-            self.n_embd
-        )        
-        past_key_values = self.dropout(past_key_values)
-        # (2,batch_size,n_head,seq_len,head_dim)
-        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
-        return past_key_values
     
     # TODO：labels按照比例切分
     # TODO: 25% -> 50% -> 75% -> 100% -> 100% -> 100% -> 100% -> 100% -> 100% -> 100%
@@ -388,23 +350,11 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
-            
-            # out -> Seq2SeqLMOutput
-            # loss: Optional[torch.FloatTensor] = None
-            # logits: torch.FloatTensor = None
-            # past_key_values: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
-            # decoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-            # decoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
-            # cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
-            # encoder_last_hidden_state: Optional[torch.FloatTensor] = None
-            # encoder_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
-            # encoder_attentions: Optional[Tuple[torch.FloatTensor]] = None
+
             out = self.model(**seg_kwargs)
-            
-            memory_tokens = out.past_key_values
-            print("memory_tokens: ", memory_tokens.shape)
-            
             model_outputs.append(out)
+            # memory_tokens = out.past_key_values
+            # print("memory_tokens: ", memory_tokens.shape)
         
         out = self.process_outputs(input_ids, model_outputs, output_attentions, output_hidden_states)
         return out
@@ -501,6 +451,7 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         out['labels_segm'] = [labels_segm]
         
         return out
+    
 # prefix-propagation version
 class BartPrefixPropForConditionalGeneration(BartPretrainedModel):
     def __init__(self, config, checkpoint):
