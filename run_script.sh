@@ -2,10 +2,9 @@
 export DATASET_NAME=arxiv
 export TASK_NAME=arxiv
 
-# Use cuda device 0 only
-export CUDA_VISIBLE_DEVICES=0
+export CUDA_VISIBLE_DEVICES=0,1,2
 
-export MODEL_NAME=allenai/longformer-base-4096
+export MODEL_NAME=facebook/bart-base
 
 # Weights and biases (wandb) related config. Set use_wandb=none if you don't want to use wandb.
 use_wandb=none # Set to "none" to disable wandb tracking, or "wandb" to enable it.
@@ -17,8 +16,8 @@ export WANDB_PROJECT_NAME="<ORG>/<PROJECT_NAME>" # IMPORTANT: set this to your o
 
 checkpoint_dir=checkpoints/$DATASET_NAME/$WANDB_NAME/  # change this to your own checkpoint dir
 
-batch_size=1
-eval_batch_size=8
+batch_size=32
+eval_batch_size=16
 dropout=0.1
 training_epochs=10
 gradient_accumulation_steps=32 # simulate a larger batch size with this
