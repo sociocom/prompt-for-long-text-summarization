@@ -21,11 +21,12 @@ os.environ['WANDB_CONFIG_DIR'] = os.getcwd() + '/wandb/.config/'
 
 logger = logging.getLogger(__name__)
 
-kwargs = {
-    "pre_seq_len": 20,
-    "input_size": 512,
-    "segment_size": 512,
-    "max_n_segments": 3,
-    "bptt_depth": 2,
-    "prefix_projection" : False,
-}
+from model.summarization import BartPrefixForConditionalGeneration
+from config.custom_config import *
+
+def main():
+    args = get_args()
+    print(args)
+
+if __name__ == "__main__":
+    main()

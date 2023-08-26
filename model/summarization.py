@@ -15,10 +15,9 @@ from transformers import (
 )
 from transformers import BartConfig
 from peft import PrefixTuningConfig, TaskType, get_peft_model
-from transformers import Seq2SeqLMOutput
+from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
-from config import config
 
 logger = logging.getLogger(__name__)
 
