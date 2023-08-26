@@ -47,7 +47,7 @@ def main():
     label_column = 'highlights'
     lr = 3e-3
     num_epochs = 10
-    batch_size = 16
+    batch_size = 8
     seed = 42
     do_test = True
     set_seed(seed)
