@@ -23,6 +23,7 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, get_linear_schedu
 from peft import PrefixTuningConfig, TaskType, get_peft_model
 
 # from model import summarization
+from utils import trace_malloc, evaluate_utils
 
 # Converting Bytes to Megabytes
 def b2mb(x):
