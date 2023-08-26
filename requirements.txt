@@ -11,3 +11,7 @@ optuna
 sigopt
 wandb
 ray[tune] 
+
+# required for evaluation
+rouge_score
+sacrebleu

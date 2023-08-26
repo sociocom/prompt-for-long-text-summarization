@@ -43,12 +43,14 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartPretrainedModel):
-    def __init__(self, checkpoint, config, peft_config):
+    def __init__(self, checkpoint, config, peft_config, accelerator):
         super().__init__(config)
 
         bart_model = BartForConditionalGeneration.from_pretrained(checkpoint)
         self.model = get_peft_model(bart_model, peft_config)
         self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
+        self.accelerator = accelerator
+        
         self.config = config
         self.segment_alignment = config.segment_alignment
         self.extract_special_tokens(self.tokenizer)
@@ -65,8 +67,6 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         
         # TODO: forget some part of long range memory and add new memory
     
-    # TODO：labels按照比例切分
-    # TODO: 25% -> 50% -> 75% -> 100% -> 100% -> 100% -> 100% -> 100% -> 100% -> 100%
     def pad_and_segment(self, input_ids, attention_mask=None, labels=None):
         """
         segment input_ids into segments
@@ -265,6 +265,8 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             return None, non_empty_mask
         
         # convert list to tensor
+        
+        segment_input_ids = [tensor.to(self.model.device) if tensor is not None else None for tensor in segment_input_ids]
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
         seg_kwargs['input_ids'] = input_ids
         
@@ -412,8 +414,11 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             
             out = self.model.generate(**seg_kwargs)
             model_outputs.append(out)
-
-        print("model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
+        # print('model_outputs: ', model_outputs)
+        # the last segment of each sample and test the first sample's last segment
+        print("decoded_model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
+        
+        return model_outputs
         
     def process_outputs(self, input_ids, model_outputs, output_attentions, output_hidden_states):
         out = model_outputs[-1] # get the last segment output
@@ -427,7 +432,8 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         for out in model_outputs:
             losses.append(out['loss'])
             logits.append(out['logits'].detach())
-            labels_segm += [out['seg_kwargs']['labels']]
+            # if out['seg_kwargs'] is not None:
+            #     labels_segm += [out['seg_kwargs']['labels']]
         
         if not output_hidden_states:
             for key in out.keys():
@@ -439,9 +445,10 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             
         out['loss'] = torch.stack(losses).mean()
         
-        for i in range(len(logits)):
-            logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
-            labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, bs - labels_segm[i].shape[0]), value=-100)
+        # TODO: need to be fixed | out of index error
+        # for i in range(len(logits)):
+        #     logits[i] = F.pad(logits[i], (0, 0, 0, 0, 0, bs - logits[i].shape[0]))
+        #     labels_segm[i] = F.pad(labels_segm[i], (0, 0, 0, bs - labels_segm[i].shape[0]), value=-100)
         
         out['logits'] = torch.cat(logits, dim=1)
         # Warning: rmt logits, labels, masks are not in the same order as in input data:

@@ -1,0 +1,76 @@
+/home/is/kaifan-l/miniconda3/envs/summarization/lib/python3.11/site-packages/transformers/models/bart/modeling_bart.py:549: FutureWarning: The class `PretrainedBartModel` has been depreciated, please use `BartPreTrainedModel` instead.
+  warnings.warn(
+[nltk_data] Downloading package punkt to
+[nltk_data]     /home/is/kaifan-l/nltk_data...
+[nltk_data]   Package punkt is already up-to-date!
+/home/is/kaifan-l/miniconda3/envs/summarization/lib/python3.11/site-packages/torch/cuda/memory.py:303: FutureWarning: torch.cuda.reset_max_memory_allocated now calls torch.cuda.reset_peak_memory_stats, which resets /all/ peak memory stats.
+  warnings.warn(
+trainable params: 184,320 || all params: 139,604,736 || trainable%: 0.13202990477343118
+BartPrefixForConditionalGeneration(
+  (model): PeftModelForSeq2SeqLM(
+    (base_model): BartForConditionalGeneration(
+      (model): BartModel(
+        (shared): Embedding(50265, 768, padding_idx=1)
+        (encoder): BartEncoder(
+          (embed_tokens): Embedding(50265, 768, padding_idx=1)
+          (embed_positions): BartLearnedPositionalEmbedding(1026, 768)
+          (layers): ModuleList(
+            (0-5): 6 x BartEncoderLayer(
+              (self_attn): BartAttention(
+                (k_proj): Linear(in_features=768, out_features=768, bias=True)
+                (v_proj): Linear(in_features=768, out_features=768, bias=True)
+                (q_proj): Linear(in_features=768, out_features=768, bias=True)
+                (out_proj): Linear(in_features=768, out_features=768, bias=True)
+              )
+              (self_attn_layer_norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+              (activation_fn): GELUActivation()
+              (fc1): Linear(in_features=768, out_features=3072, bias=True)
+              (fc2): Linear(in_features=3072, out_features=768, bias=True)
+              (final_layer_norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+            )
+          )
+          (layernorm_embedding): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+        )
+        (decoder): BartDecoder(
+          (embed_tokens): Embedding(50265, 768, padding_idx=1)
+          (embed_positions): BartLearnedPositionalEmbedding(1026, 768)
+          (layers): ModuleList(
+            (0-5): 6 x BartDecoderLayer(
+              (self_attn): BartAttention(
+                (k_proj): Linear(in_features=768, out_features=768, bias=True)
+                (v_proj): Linear(in_features=768, out_features=768, bias=True)
+                (q_proj): Linear(in_features=768, out_features=768, bias=True)
+                (out_proj): Linear(in_features=768, out_features=768, bias=True)
+              )
+              (activation_fn): GELUActivation()
+              (self_attn_layer_norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+              (encoder_attn): BartAttention(
+                (k_proj): Linear(in_features=768, out_features=768, bias=True)
+                (v_proj): Linear(in_features=768, out_features=768, bias=True)
+                (q_proj): Linear(in_features=768, out_features=768, bias=True)
+                (out_proj): Linear(in_features=768, out_features=768, bias=True)
+              )
+              (encoder_attn_layer_norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+              (fc1): Linear(in_features=768, out_features=3072, bias=True)
+              (fc2): Linear(in_features=3072, out_features=768, bias=True)
+              (final_layer_norm): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+            )
+          )
+          (layernorm_embedding): LayerNorm((768,), eps=1e-05, elementwise_affine=True)
+        )
+      )
+      (lm_head): Linear(in_features=768, out_features=50265, bias=False)
+    )
+    (prompt_encoder): ModuleDict(
+      (default): PrefixEncoder(
+        (embedding): Embedding(20, 9216)
+      )
+    )
+    (word_embeddings): Embedding(50265, 768, padding_idx=1)
+  )
+)
+Start training ...
+cuda
+================================== epoch 0 ==================================
+  0%|          | 0/3589 [00:00<?, ?it/s]You're using a BartTokenizerFast tokenizer. Please note that with a fast tokenizer, using the `__call__` method is faster than using a method to encode the text followed by a call to the `pad` method to get a padded encoding.
+  0%|          | 1/3589 [00:01<1:37:42,  1.63s/it]  0%|          | 2/3589 [00:03<1:41:40,  1.70s/it]  0%|          | 3/3589 [00:05<1:43:58,  1.74s/it]  0%|          | 4/3589 [00:06<1:46:03,  1.77s/it]  0%|          | 5/3589 [00:08<1:43:52,  1.74s/it]  0%|          | 6/3589 [00:10<1:38:19,  1.65s/it]  0%|          | 7/3589 [00:11<1:33:12,  1.56s/it]  0%|          | 8/3589 [00:13<1:35:27,  1.60s/it]  0%|          | 9/3589 [00:14<1:31:00,  1.53s/it]  0%|          | 10/3589 [00:16<1:30:33,  1.52s/it]  0%|          | 11/3589 [00:17<1:36:52,  1.62s/it]  0%|          | 12/3589 [00:19<1:38:07,  1.65s/it]  0%|          | 13/3589 [00:21<1:38:54,  1.66s/it]  0%|          | 14/3589 [00:23<1:41:48,  1.71s/it]  0%|          | 15/3589 [00:24<1:42:53,  1.73s/it]  0%|          | 16/3589 [00:26<1:40:15,  1.68s/it]  0%|          | 17/3589 [00:28<1:43:23,  1.74s/it]  1%|          | 18/3589 [00:30<1:42:26,  1.72s/it]  1%|          | 19/3589 [00:31<1:39:45,  1.68s/it]  1%|          | 20/3589 [00:33<1:37:26,  1.64s/it]  1%|          | 21/3589 [00:34<1:34:03,  1.58s/it]  1%|          | 22/3589 [00:35<1:30:20,  1.52s/it]  1%|          | 23/3589 [00:37<1:31:20,  1.54s/it]  1%|          | 24/3589 [00:39<1:31:59,  1.55s/it]  1%|          | 25/3589 [00:40<1:37:15,  1.64s/it]  1%|          | 26/3589 [00:42<1:33:42,  1.58s/it]  1%|          | 27/3589 [00:44<1:36:03,  1.62s/it]  1%|          | 28/3589 [00:45<1:36:15,  1.62s/it]  1%|          | 29/3589 [00:47<1:30:59,  1.53s/it]  1%|          | 30/3589 [00:48<1:30:30,  1.53s/it]  1%|          | 31/3589 [00:50<1:30:04,  1.52s/it]  1%|          | 32/3589 [00:51<1:31:07,  1.54s/it]  1%|          | 33/3589 [00:53<1:28:49,  1.50s/it]  1%|          | 34/3589 [00:54<1:28:35,  1.50s/it]  1%|          | 35/3589 [00:56<1:33:41,  1.58s/it]  1%|          | 36/3589 [00:58<1:37:35,  1.65s/it]  1%|          | 37/3589 [00:59<1:36:31,  1.63s/it]  1%|          | 38/3589 [01:01<1:32:52,  1.57s/it]  1%|          | 39/3589 [01:03<1:38:25,  1.66s/it]  1%|          | 40/3589 [01:04<1:41:41,  1.72s/it]  1%|          | 41/3589 [01:06<1:40:10,  1.69s/it]  1%|          | 42/3589 [01:08<1:40:08,  1.69s/it]  1%|          | 43/3589 [01:09<1:40:39,  1.70s/it]  1%|          | 44/3589 [01:11<1:42:56,  1.74s/it]  1%|▏         | 45/3589 [01:13<1:42:18,  1.73s/it]  1%|▏         | 46/3589 [01:15<1:44:45,  1.77s/it]  1%|▏         | 47/3589 [01:16<1:40:10,  1.70s/it]  1%|▏         | 48/3589 [01:18<1:35:50,  1.62s/it]  1%|▏         | 49/3589 [01:19<1:32:47,  1.57s/it]  1%|▏         | 50/3589 [01:21<1:33:39,  1.59s/it]  1%|▏         | 51/3589 [01:22<1:31:30,  1.55s/it]  1%|▏         | 52/3589 [01:24<1:37:19,  1.65s/it]  1%|▏         | 53/3589 [01:26<1:41:09,  1.72s/it]  2%|▏         | 54/3589 [01:28<1:39:24,  1.69s/it]  2%|▏         | 55/3589 [01:29<1:34:52,  1.61s/it]  2%|▏         | 56/3589 [01:31<1:33:03,  1.58s/it]  2%|▏         | 57/3589 [01:32<1:31:52,  1.56s/it]  2%|▏         | 58/3589 [01:34<1:35:23,  1.62s/it]  2%|▏         | 59/3589 [01:36<1:34:18,  1.60s/it]  2%|▏         | 60/3589 [01:37<1:36:18,  1.64s/it]  2%|▏         | 61/3589 [01:39<1:36:37,  1.64s/it]  2%|▏         | 62/3589 [01:40<1:33:06,  1.58s/it]  2%|▏         | 63/3589 [01:42<1:33:51,  1.60s/it]  2%|▏         | 64/3589 [01:43<1:31:05,  1.55s/it]  2%|▏         | 65/3589 [01:45<1:33:59,  1.60s/it]  2%|▏         | 66/3589 [01:47<1:35:14,  1.62s/it]  2%|▏         | 67/3589 [01:49<1:52:43,  1.92s/it]  2%|▏         | 68/3589 [01:53<2:14:51,  2.30s/it]  2%|▏         | 69/3589 [01:56<2:36:48,  2.67s/it]  2%|▏         | 70/3589 [02:00<3:01:26,  3.09s/it]  2%|▏         | 71/3589 [02:04<3:07:44,  3.20s/it]  2%|▏         | 72/3589 [02:08<3:31:37,  3.61s/it]  2%|▏         | 73/3589 [02:12<3:41:29,  3.78s/it]  2%|▏         | 74/3589 [02:16<3:37:39,  3.72s/it]  2%|▏         | 75/3589 [02:19<3:32:40,  3.63s/it]  2%|▏         | 76/3589 [02:22<3:21:19,  3.44s/it]  2%|▏         | 77/3589 [02:26<3:19:36,  3.41s/it]  2%|▏         | 78/3589 [02:30<3:35:47,  3.69s/it]  2%|▏         | 79/3589 [02:35<4:00:29,  4.11s/it]  2%|▏         | 80/3589 [02:39<3:57:27,  4.06s/it]  2%|▏         | 81/3589 [02:44<4:14:58,  4.36s/it]  2%|▏         | 82/3589 [02:46<3:37:53,  3.73s/it]  2%|▏         | 83/3589 [02:50<3:34:38,  3.67s/it]  2%|▏         | 84/3589 [02:54<3:45:23,  3.86s/it]  2%|▏         | 85/3589 [02:59<3:52:34,  3.98s/it]  2%|▏         | 86/3589 [03:02<3:44:44,  3.85s/it]  2%|▏         | 87/3589 [03:06<3:52:43,  3.99s/it]  2%|▏         | 88/3589 [03:10<3:50:06,  3.94s/it]  2%|▏         | 89/3589 [03:14<3:40:12,  3.77s/it]

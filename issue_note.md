@@ -237,5 +237,11 @@ custom_config = CustomBartConfig(
 1. decoder_input_ids出现out of index: decoder_input_ids必须以eos开头
 2. decoder_input_ids不需要手动生成, 模型会自动从labels转换
 3. past_key_values只能用在decoder部分 (去年的版本？？现在是否已经更新了呢)
-> https://github.com/huggingface/transformers/issues/15591
-> https://blog.csdn.net/weixin_42953627/article/details/125586001
+    > https://github.com/huggingface/transformers/issues/15591
+    > https://blog.csdn.net/weixin_42953627/article/details/125586001
+4. 一个模型的max_size取决于max_position_embeddings: 
+    > https://github.com/huggingface/transformers/issues/4224
+
+```bash
+nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
+```

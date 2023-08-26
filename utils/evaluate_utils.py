@@ -2,7 +2,7 @@ import evaluate
 import nltk
 nltk.download("punkt")
 from nltk.tokenize import sent_tokenize
-import tqdm
+from tqdm import tqdm
 from .trace_malloc import * 
 
 # 用于计算 ROUGE 指标的函数
@@ -30,13 +30,14 @@ class SummarizationMetric():
                           model, tokenizer,
                           accelerator,
                           target_max_length,
-                          batch_size=32,
+                          batch_size=16,
                           column_text="article",
                           column_summary="highlights"):
         
         with TorchTracemalloc() as tracemalloc:
             for step, batch in enumerate(tqdm(dataloader)):
                 labels = batch["labels"]
+                print('labels: ', labels.shape, type(labels))
                 # 对于peft的模型直接收**batch的形式
                 # 不能单独传batch和attention_mask
                 batch = {k: v for k, v in batch.items() if k != "labels"}
@@ -45,19 +46,25 @@ class SummarizationMetric():
                         **batch,
                         # sysnced_gpus=is_ds_zero3,
                         length_penalty=0.8,
-                        num_beams=8,
+                        num_beams=4,
                         max_length=target_max_length,
                     )
+                    print(f"generated_tokens: {generated_tokens}")
                 # 当使用分布式训练时，不同设备或节点上的模型生成的输出可能有不同的长度。
                 # 为了进行后续的评估和计算指标，我们需要将这些输出统一为相同的长度。
                 # dim=1的维度是token的维度，这里的pad_index是tokenizer的pad_token_id
+                
+                generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
                 generated_tokens = accelerator.pad_across_processes(
-                    generated_tokens, dim=1,
+                    generated_tokens, 
+                    dim=1,
                     pad_index=tokenizer.pad_token_id,
                 )
                 
                 labels = accelerator.pad_across_processes(
-                    labels, dim=1, pad_index=tokenizer.pad_token_id
+                    labels, 
+                    dim=1, 
+                    pad_index=tokenizer.pad_token_id
                 )
                 
                 # 将分布式计算的输出结果收集到主进程中
@@ -67,12 +74,18 @@ class SummarizationMetric():
                 # Replace -100 in the labels as we can't decode them
                 labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
                 
-                if isinstance(generated_tokens, tuple):
-                    generated_tokens = generated_tokens[0]
+                print('last_segments output: ', generated_tokens[-1].shape)
+                print('last_segment_output type: ', type(generated_tokens[-1]))
+                print('labels:', labels.shape)
+                print('labels type: ', type(labels))
+                if isinstance(generated_tokens, list):
+                    generated_tokens = generated_tokens[-1]
                 decoded_preds = tokenizer.batch_decode(
                     generated_tokens, skip_special_tokens=True
                 )
-                decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+                decoded_labels = tokenizer.batch_decode(
+                    labels, skip_special_tokens=True
+                )
                 
                 decoded_preds, decoded_labels = self.postprocess_text(
                     decoded_preds, decoded_labels

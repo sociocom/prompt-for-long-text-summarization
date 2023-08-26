@@ -149,7 +149,7 @@ class SummarizationMetric():
                 labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
                 
                 if isinstance(generated_tokens, tuple):
-                    generated_tokens = generated_tokens[0]
+                    generated_tokens = generated_tokens[-1]
                 decoded_preds = tokenizer.batch_decode(
                     generated_tokens, skip_special_tokens=True
                 )

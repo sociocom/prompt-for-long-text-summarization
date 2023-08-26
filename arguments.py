@@ -105,13 +105,20 @@ class ModelArguments:
     #         "help": "The hidden size of the MLP projection head in Prefix Encoder if prefix projection is used"
     #     },
     # )
-
+    
+@dataclass
+class CustomTrainingArguments(TrainingArguments):
+    do_hyper_search: bool = field(
+        default=False, metadata={"help": "Run a hyperparameter search"}
+    )
+    
 def get_args():
     """Parse all the args."""
     parser = HfArgumentParser(
         (
             ModelArguments,
             DataTrainingArguments,
+            CustomTrainingArguments,
         )
     )
     
