@@ -4,36 +4,6 @@ from typing import Optional, Literal
 from dataclasses import dataclass, field
 
 DATASETS = ["cnn_dailymail", "xsum", "NYT"]
-
-@dataclass
-class DataTrainingArguments:
-    """
-    Arguments pertaining to what data we are going to input our model for training and eval.
-
-    Using `HfArgumentParser` we can turn this class
-    into argparse arguments to be able to specify them on
-    the command line.training_args
-    """
-    
-    dataset_name: str = field(
-        metadata={
-            'help': "The name of the dataset to use: " + ", ".join(DATASETS),
-            "choices": DATASETS,
-        }
-    )
-    dataset_config_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "The configuration name of the dataset to use (via the datasets library)."
-        },
-    )
-    early_stopping_patience: Optional[int] = field(
-        default=-1,
-        metadata={
-            "help": "If default or less than 0, no early stopping."
-            "Metric to monitor defaults to first in eval dictionary"
-        },
-    )
     
 @dataclass
 class ModelArguments:
@@ -105,7 +75,37 @@ class ModelArguments:
     #         "help": "The hidden size of the MLP projection head in Prefix Encoder if prefix projection is used"
     #     },
     # )
+
+@dataclass
+class DataTrainingArguments:
+    """
+    Arguments pertaining to what data we are going to input our model for training and eval.
+
+    Using `HfArgumentParser` we can turn this class
+    into argparse arguments to be able to specify them on
+    the command line.training_args
+    """
     
+    dataset_name: str = field(
+        metadata={
+            'help': "The name of the dataset to use: " + ", ".join(DATASETS),
+            "choices": DATASETS,
+        }
+    )
+    dataset_config_name: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "The configuration name of the dataset to use (via the datasets library)."
+        },
+    )
+    early_stopping_patience: Optional[int] = field(
+        default=-1,
+        metadata={
+            "help": "If default or less than 0, no early stopping."
+            "Metric to monitor defaults to first in eval dictionary"
+        },
+    )
+ 
 @dataclass
 class CustomTrainingArguments(TrainingArguments):
     do_hyper_search: bool = field(

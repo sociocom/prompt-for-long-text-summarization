@@ -232,7 +232,6 @@ custom_config = CustomBartConfig(
 ### 一：Auto Regressive & Teacher Forcing
 > 引发了exposure bias： [Bridging the Gap between Training and Inference for Neural Machine Translation](https://aclanthology.org/P19-1426/)
 
-
 ## Debug记录
 1. decoder_input_ids出现out of index: decoder_input_ids必须以eos开头
 2. decoder_input_ids不需要手动生成, 模型会自动从labels转换
@@ -245,3 +244,5 @@ custom_config = CustomBartConfig(
 ```bash
 nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
 ```
+
+5. 如何删除已经被git追踪的文件：git rm -r --cached "filename"
