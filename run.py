@@ -32,8 +32,7 @@ from config.custom_config import PromptBartConfig
 from utils import evaluate_utils, trace_malloc
 
 def main():
-    # args = get_args()
-    # print(args)
+    model_args, data_args, training_args = get_args()
     # ================================== 1. 定义模型的超参数 ================================== 
     accelerator = Accelerator() # device_placement="cuda:0"
     model_name_or_path = "facebook/bart-base"
@@ -47,10 +46,8 @@ def main():
     label_column = 'highlights'
     lr = 3e-3
     num_epochs = 10
-    batch_size = 8
-    seed = 42
-    do_test = True
-    set_seed(seed)
+    # batch_size = 8
+    set_seed(training_args.seed)
     # ================================== 2. 加载数据集 =======================================
     cnn_dataset = load_dataset(dataset_name, "3.0.0")
 
@@ -94,7 +91,7 @@ def main():
     # 计算需要取出的样本数量
     train_size = int(len(cnn_dataset["train"]) * 0.1)
     eval_size = int(len(cnn_dataset["validation"]) * 0.1)
-    test_size = int(len(cnn_dataset["test"]) * 0.1)
+    test_size = int(len(cnn_dataset["test"]) * 0.01)
 
     # 从打乱后的数据集中随机抽取指定数量的数据
     train_dataset = cnn_dataset["train"].shuffle(seed=42).select(range(train_size))
@@ -108,19 +105,19 @@ def main():
         train_dataset, 
         shuffle=True,
         collate_fn=collate_fn,
-        batch_size=batch_size,
+        batch_size=training_args.per_device_train_batch_size,
         pin_memory=True, # 将数据加载到固定的内存中，可以加速数据加载
     )
     eval_dataloader = DataLoader(
         eval_dataset,
         collate_fn=collate_fn,
-        batch_size=batch_size,
+        batch_size=training_args.per_device_eval_batch_size,
         pin_memory=True,
     )
     test_dataloader = DataLoader(
         test_dataset,
         collate_fn=collate_fn,
-        batch_size=batch_size,
+        batch_size=training_args.per_device_eval_batch_size,
         pin_memory=True,
     )        
     # ================================== 3. 加载模型 ======================================
@@ -169,61 +166,62 @@ def main():
     
     for epoch in range(num_epochs):
         print("================================== epoch {} ==================================".format(epoch))
-        with trace_malloc.TorchTracemalloc() as tracemalloc:
-            model.train()
-            total_loss = 0
-            for step, batch in enumerate(tqdm(train_dataloader)):
-                outputs = model(**batch)
-                loss = outputs.loss
-                total_loss += loss.detach().float()
-                accelerator.backward(loss) 
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()    
-                
-        # ================================== 可以省略: 计算存储消耗 ======================================     
-        # Printing the GPU memory usage details such as allocated memory, peak memory, and total memory usage
-        accelerator.print("GPU Memory before entering the train : {}".format(trace_malloc.b2mb(tracemalloc.begin)))
-        accelerator.print("GPU Memory consumed at the end of the train (end-begin): {}".format(tracemalloc.used))
-        accelerator.print("GPU Peak Memory consumed during the train (max-begin): {}".format(tracemalloc.peaked))
-        accelerator.print(
-            "GPU Total Peak Memory consumed during the train (max): {}".format(
-                tracemalloc.peaked + trace_malloc.b2mb(tracemalloc.begin)
-            )
-        )
-
-        accelerator.print("CPU Memory before entering the train : {}".format(trace_malloc.b2mb(tracemalloc.cpu_begin)))
-        accelerator.print("CPU Memory consumed at the end of the train (end-begin): {}".format(tracemalloc.cpu_used))
-        accelerator.print("CPU Peak Memory consumed during the train (max-begin): {}".format(tracemalloc.cpu_peaked))
-        accelerator.print(
-            "CPU Total Peak Memory consumed during the train (max): {}".format(
-                tracemalloc.cpu_peaked + trace_malloc.b2mb(tracemalloc.cpu_begin)
-            )
-        )               
-        # ================================== 4.1 评估训练集 ======================================
-        train_epoch_loss = total_loss / len(train_dataloader)
-        train_ppl = torch.exp(train_epoch_loss)
-        accelerator.print(f"{epoch=}: {train_ppl=} {train_epoch_loss=}")    
-                       
-        # ================================== 4.2 评估验证集 ======================================
-        # TODO: 加上清空缓存
-        model.eval()
-        print("\n")
-        print("Start evaluating ...")
-        with trace_malloc.TorchTracemalloc() as tracemalloc:
-            with torch.no_grad():
-                eval_total_loss = 0
-                for step, batch in enumerate(tqdm(eval_dataloader)):
+        if training_args.do_train:
+            with trace_malloc.TorchTracemalloc() as tracemalloc:
+                model.train()
+                total_loss = 0
+                for step, batch in enumerate(tqdm(train_dataloader)):
                     outputs = model(**batch)
                     loss = outputs.loss
-                    eval_total_loss += loss.detach().float()
-        eval_epoch_loss = eval_total_loss / len(eval_dataloader)
-        eval_ppl = torch.exp(eval_epoch_loss)
-        accelerator.print(f"{epoch=}: {eval_ppl=} {eval_epoch_loss=}")      
+                    total_loss += loss.detach().float()
+                    accelerator.backward(loss) 
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()    
+                    
+            # ================================== 可以省略: 计算存储消耗 ======================================     
+            # Printing the GPU memory usage details such as allocated memory, peak memory, and total memory usage
+            accelerator.print("GPU Memory before entering the train : {}".format(trace_malloc.b2mb(tracemalloc.begin)))
+            accelerator.print("GPU Memory consumed at the end of the train (end-begin): {}".format(tracemalloc.used))
+            accelerator.print("GPU Peak Memory consumed during the train (max-begin): {}".format(tracemalloc.peaked))
+            accelerator.print(
+                "GPU Total Peak Memory consumed during the train (max): {}".format(
+                    tracemalloc.peaked + trace_malloc.b2mb(tracemalloc.begin)
+                )
+            )
+
+            accelerator.print("CPU Memory before entering the train : {}".format(trace_malloc.b2mb(tracemalloc.cpu_begin)))
+            accelerator.print("CPU Memory consumed at the end of the train (end-begin): {}".format(tracemalloc.cpu_used))
+            accelerator.print("CPU Peak Memory consumed during the train (max-begin): {}".format(tracemalloc.cpu_peaked))
+            accelerator.print(
+                "CPU Total Peak Memory consumed during the train (max): {}".format(
+                    tracemalloc.cpu_peaked + trace_malloc.b2mb(tracemalloc.cpu_begin)
+                )
+            )               
+            # ================================== 4.1 评估训练集 ======================================
+            train_epoch_loss = total_loss / len(train_dataloader)
+            train_ppl = torch.exp(train_epoch_loss)
+            accelerator.print(f"{epoch=}: {train_ppl=} {train_epoch_loss=}")    
+                       
+        # ================================== 4.2 评估验证集 ======================================
+        if training_args.do_eval:
+            model.eval()
+            print("\n")
+            print("Start evaluating ...")
+            with trace_malloc.TorchTracemalloc() as tracemalloc:
+                with torch.no_grad():
+                    eval_total_loss = 0
+                    for step, batch in enumerate(tqdm(eval_dataloader)):
+                        outputs = model(**batch)
+                        loss = outputs.loss
+                        eval_total_loss += loss.detach().float()
+            eval_epoch_loss = eval_total_loss / len(eval_dataloader)
+            eval_ppl = torch.exp(eval_epoch_loss)
+            accelerator.print(f"{epoch=}: {eval_ppl=} {eval_epoch_loss=}")      
           
         # ================================== 5. 评估测试集 ======================================
-        if do_test := False:
-            if (epoch+1) % 1 == 0:
+        if training_args.do_predict:
+            if (epoch+1) % training_args.predict_epoch == 0:
                 model.eval()
                 rouge_metric = evaluate.load("rouge")
                 summarization_metric = evaluate_utils.SummarizationMetric()

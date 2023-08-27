@@ -74,12 +74,12 @@ class SummarizationMetric():
                 # Replace -100 in the labels as we can't decode them
                 labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
                 
-                print('last_segments output: ', generated_tokens)
+                print('last_segments output: ', generated_tokens[-1])
                 print('last_segment_output type: ', type(generated_tokens[-1]))
                 print('labels:', labels)
                 print('labels type: ', type(labels))
-                if isinstance(generated_tokens, list):
-                    generated_tokens = generated_tokens[-1]
+                
+                generated_tokens = generated_tokens[-1]                
                 decoded_preds = tokenizer.batch_decode(
                     generated_tokens, skip_special_tokens=True
                 )

@@ -418,6 +418,8 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         # the last segment of each sample and test the first sample's last segment
         print("decoded_model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
         
+        # TODO: need to process fully padding segment
+        #       process_output for generate
         return model_outputs
         
     def process_outputs(self, input_ids, model_outputs, output_attentions, output_hidden_states):

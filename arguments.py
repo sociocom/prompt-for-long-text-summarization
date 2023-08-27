@@ -111,6 +111,9 @@ class CustomTrainingArguments(TrainingArguments):
     do_hyper_search: bool = field(
         default=False, metadata={"help": "Run a hyperparameter search"}
     )
+    predict_epoch: int = field(
+        default=5, metadata={"help": "Ever how many epochs to run a predict"}
+    )
     
 def get_args():
     """Parse all the args."""

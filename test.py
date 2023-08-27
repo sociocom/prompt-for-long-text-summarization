@@ -22,5 +22,7 @@ parser = HfArgumentParser(
 
 from arguments import get_args
 
-args = get_args()
-print(args)
+model_args, data_args, training_args = get_args()
+
+print('model_args: ', model_args)
+print(training_args.do_train)
