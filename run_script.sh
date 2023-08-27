@@ -30,27 +30,28 @@ psl=8
 # do
 export WANDB_NAME=$DISPLAY_NAME-$RUN_ID-$lr-$seed
 
-    # To enable prefix-tuning, make sure to only use the flag --prefix
-python3 run.py \
---model_name_or_path $MODEL_NAME \
+# To enable prefix-tuning, make sure to only use the flag --prefix
+
+nohup python3 run.py \
+--model_name_or_path "$MODEL_NAME" \
 --prefix \
---task_name $TASK_NAME \
---dataset_name $DATASET_NAME \
+--task_name "$TASK_NAME" \
+--dataset_name "$DATASET_NAME" \
 --do_train \
 --do_predict \
 --do_eval \
---max_seq_length $((4096-psl)) \
---per_device_train_batch_size $batch_size \
---per_device_eval_batch_size $eval_batch_size \
---gradient_accumulation_steps $gradient_accumulation_steps \
---learning_rate $lr \
---num_train_epochs $training_epochs \
---pre_seq_len $psl \
+--max_seq_length "$((4096-psl))" \
+--per_device_train_batch_size "$batch_size" \
+--per_device_eval_batch_size "$eval_batch_size" \
+--gradient_accumulation_steps "$gradient_accumulation_steps" \
+--learning_rate "$lr" \
+--num_train_epochs "$training_epochs" \
+--pre_seq_len "$psl" \
 --additional_non_frozen_embeds 2 \
---output_dir $checkpoint_dir \
---hidden_dropout_prob $dropout \
+--output_dir "$checkpoint_dir" \
+--hidden_dropout_prob "$dropout" \
 --warmup_ratio 0.1 \
---seed $seed \
+--seed "$seed" \
 --save_strategy steps \
 --evaluation_strategy steps \
 --logging_strategy steps \
@@ -59,5 +60,6 @@ python3 run.py \
 --optim adamw_torch \
 --logging_steps 8 \
 --save_total_limit 2 \
---report_to $use_wandb
+--report_to "$use_wandb" \
+"$@" > logs/$(TZ=Asia/Tokyo date +'%Y_%m_%d_%H_%M').txt 2>&1 &
 # done
