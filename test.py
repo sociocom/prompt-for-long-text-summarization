@@ -18,5 +18,9 @@ parser = HfArgumentParser(
     )
 )
 
-args = parser.parse_args_into_dataclasses()
+
+
+from arguments import get_args
+
+args = get_args()
 print(args)

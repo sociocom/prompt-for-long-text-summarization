@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# 设置时区为东京时区
+export TZ=Asia/Tokyo
+
 # 获取当前日期
 current_date=$(date +'%Y_%m_%d')
 # 创建日志文件夹
@@ -12,4 +15,4 @@ current_datetime=$(date +'%Y_%m_%d_%H_%M')
 log_filename="${log_folder}/logs_${current_datetime}.txt"
 
 # 执行命令并将输出重定向到日志文件
-nohup python run.py > $log_filename 2>&1 &
+nohup python3 run.py > $log_filename 2>&1 &

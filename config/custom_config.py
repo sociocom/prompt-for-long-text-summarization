@@ -21,7 +21,7 @@ class PromptBartConfig(BartConfig):
     def __init__(self,
                  pre_seq_len=20,
                  input_size=512,
-                 max_n_segments=3,
+                 max_n_segments=4,
                  bptt_depth=-1,
                  prefix_projection=False, 
                  hidden_dropout_prob=0.1,

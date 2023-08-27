@@ -1,5 +1,5 @@
 # See tasks/utils.py for possible dataset and task names.
-export DATASET_NAME=arxiv
+export DATASET_NAME=cnn-dailymail
 export TASK_NAME=arxiv
 
 export CUDA_VISIBLE_DEVICES=0,1,2
@@ -28,7 +28,7 @@ psl=8
 # # Search through these learning rates
 # for lr in 7e-3 5e-2 1e-3 5e-3 1e-2 5e-4
 # do
-    export WANDB_NAME=$DISPLAY_NAME-$RUN_ID-$lr-$seed
+export WANDB_NAME=$DISPLAY_NAME-$RUN_ID-$lr-$seed
 
     # To enable prefix-tuning, make sure to only use the flag --prefix
 python3 run.py \
