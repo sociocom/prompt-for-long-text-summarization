@@ -24,7 +24,6 @@ export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=cnn_dailymail
 checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/ 
 
-
 batch_size=8
 eval_batch_size=8
 
@@ -33,11 +32,11 @@ nohup python3 run.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
---do_train false \
---do_eval false \
+--do_train true \
+--do_eval true \
 --do_predict true \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 5 \
---num_train_epochs 10 \
+--num_train_epochs 5 \
 "$@" > $log_filename 2>&1 &

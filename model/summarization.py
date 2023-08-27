@@ -43,13 +43,11 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(BartPretrainedModel):
-    def __init__(self, checkpoint, config, peft_config, accelerator):
+    def __init__(self, checkpoint, config, peft_config):
         super().__init__(config)
-
         bart_model = BartForConditionalGeneration.from_pretrained(checkpoint)
         self.model = get_peft_model(bart_model, peft_config)
         self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
-        self.accelerator = accelerator
         
         self.config = config
         self.segment_alignment = config.segment_alignment
@@ -516,6 +514,17 @@ class BartPrefixPropForConditionalGeneration(BartPretrainedModel):
             )
             prompts = self.prefix_encoder(prefix_tokens)
         return prompts
+    
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.special_token_ids = [tokenizer.pad_token_id]
+        for token in ['cls_token', 'sep_token', 'eos_token', 'bos_token']:
+            token_id = getattr(tokenizer, f'{token}_id')
+            if token_id is not None:
+                self.register_buffer(token, torch.tensor([token_id]))
+                self.special_token_ids.append(token_id)
+            else:
+                setattr(self, token, None)
 # ============================================
 # ================ T5 model ==================
 # ============================================

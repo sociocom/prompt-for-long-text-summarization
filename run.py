@@ -131,7 +131,7 @@ def main():
         checkpoint=model_name_or_path,
         config=custom_config,
         peft_config=peft_config,
-        accelerator=accelerator, # NOTE: if use accelerator, update grad during seg loop
+        # accelerator=accelerator, # NOTE: if use accelerator, update grad during seg loop
     )
     model.model.print_trainable_parameters()
     
@@ -246,7 +246,7 @@ def main():
     #     : this method just save prefix modele at last epoch
     model.model.push_to_hub(
         "kaifanli/"
-        + f"prefix_rmt_bart_cnn-dm",
+        + f"prefix-tuning_rmt_bart_cnn-dm",
         state_dict=accelerator.get_state_dict(model),
         use_auth_token=True,
     )
