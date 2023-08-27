@@ -39,4 +39,5 @@ nohup python3 run.py \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 5 \
+--num_train_epochs 10 \
 "$@" > $log_filename 2>&1 &

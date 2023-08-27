@@ -37,7 +37,6 @@ class SummarizationMetric():
         with TorchTracemalloc() as tracemalloc:
             for step, batch in enumerate(tqdm(dataloader)):
                 labels = batch["labels"]
-                print('labels: ', labels.shape, type(labels))
                 # 对于peft的模型直接收**batch的形式
                 # 不能单独传batch和attention_mask
                 batch = {k: v for k, v in batch.items() if k != "labels"}
@@ -49,7 +48,6 @@ class SummarizationMetric():
                         num_beams=4,
                         max_length=target_max_length,
                     )
-                    print(f"generated_tokens: {generated_tokens}")
                 # 当使用分布式训练时，不同设备或节点上的模型生成的输出可能有不同的长度。
                 # 为了进行后续的评估和计算指标，我们需要将这些输出统一为相同的长度。
                 # dim=1的维度是token的维度，这里的pad_index是tokenizer的pad_token_id
@@ -74,11 +72,7 @@ class SummarizationMetric():
                 # Replace -100 in the labels as we can't decode them
                 labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
                 
-                print('last_segments output: ', generated_tokens[-1])
-                print('last_segment_output type: ', type(generated_tokens[-1]))
-                print('labels:', labels)
-                print('labels type: ', type(labels))
-                
+                # get the last segment output 
                 generated_tokens = generated_tokens[-1]                
                 decoded_preds = tokenizer.batch_decode(
                     generated_tokens, skip_special_tokens=True

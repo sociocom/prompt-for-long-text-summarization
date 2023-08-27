@@ -35,18 +35,14 @@ def main():
     model_args, data_args, training_args = get_args()
     # ================================== 1. 定义模型的超参数 ================================== 
     accelerator = Accelerator() # device_placement="cuda:0"
-    model_name_or_path = "facebook/bart-base"
-    dataset_name = "cnn_dailymail"
-    peft_config = PrefixTuningConfig(
-        task_type=TaskType.SEQ_2_SEQ_LM,
-        inference_mode=False,
-        num_virtual_tokens=20,
-    )
+    model_name_or_path = model_args.model_name_or_path
+    dataset_name = data_args.dataset_name
     text_column = 'article'
     label_column = 'highlights'
-    lr = 3e-3
-    num_epochs = 10
-    # batch_size = 8
+    lr = training_args.learning_rate
+    num_epochs = training_args.num_train_epochs
+    train_batch_size = training_args.per_device_train_batch_size
+    eval_batch_size = training_args.per_device_eval_batch_size
     set_seed(training_args.seed)
     # ================================== 2. 加载数据集 =======================================
     cnn_dataset = load_dataset(dataset_name, "3.0.0")
@@ -91,7 +87,7 @@ def main():
     # 计算需要取出的样本数量
     train_size = int(len(cnn_dataset["train"]) * 0.1)
     eval_size = int(len(cnn_dataset["validation"]) * 0.1)
-    test_size = int(len(cnn_dataset["test"]) * 0.01)
+    test_size = int(len(cnn_dataset["test"]) * 0.001)
 
     # 从打乱后的数据集中随机抽取指定数量的数据
     train_dataset = cnn_dataset["train"].shuffle(seed=42).select(range(train_size))
@@ -105,29 +101,37 @@ def main():
         train_dataset, 
         shuffle=True,
         collate_fn=collate_fn,
-        batch_size=training_args.per_device_train_batch_size,
+        batch_size=train_batch_size,
         pin_memory=True, # 将数据加载到固定的内存中，可以加速数据加载
     )
     eval_dataloader = DataLoader(
         eval_dataset,
         collate_fn=collate_fn,
-        batch_size=training_args.per_device_eval_batch_size,
+        batch_size=eval_batch_size,
         pin_memory=True,
     )
     test_dataloader = DataLoader(
         test_dataset,
         collate_fn=collate_fn,
-        batch_size=training_args.per_device_eval_batch_size,
+        batch_size=eval_batch_size,
         pin_memory=True,
     )        
     # ================================== 3. 加载模型 ======================================
+    if model_args.peft_config_name is not None:
+        peft_config = PrefixTuningConfig.from_pretrained(model_args.peft_config_name)
+    else:
+        peft_config = PrefixTuningConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            inference_mode=False,
+            num_virtual_tokens=20,
+        )
     bart_config = AutoConfig.from_pretrained(model_name_or_path)
     custom_config = PromptBartConfig(**bart_config.to_dict())
     model = BartPrefixForConditionalGeneration(
         checkpoint=model_name_or_path,
         config=custom_config,
         peft_config=peft_config,
-        accelerator=accelerator,
+        accelerator=accelerator, # NOTE: if use accelerator, update grad during seg loop
     )
     model.model.print_trainable_parameters()
     
@@ -238,7 +242,9 @@ def main():
             
     # ================================== 6. 保存模型 ======================================
     accelerator.wait_for_everyone()
-    model.push_to_hub(
+    # TODO: use trainer to save model
+    #     : this method just save prefix modele at last epoch
+    model.model.push_to_hub(
         "kaifanli/"
         + f"prefix_rmt_bart_cnn-dm",
         state_dict=accelerator.get_state_dict(model),

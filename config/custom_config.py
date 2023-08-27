@@ -27,7 +27,7 @@ class PromptBartConfig(BartConfig):
                  hidden_dropout_prob=0.1,
                  segment_alignment='left',
                  sum_token_size=0,
-                 label_max_size=142,
+                 label_max_size=256,
                  sum_loss=True,
                  **kwargs):
         super().__init__(**kwargs)
