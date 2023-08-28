@@ -43,6 +43,7 @@ def main():
     num_epochs = int(training_args.num_train_epochs)
     train_batch_size = training_args.per_device_train_batch_size
     eval_batch_size = training_args.per_device_eval_batch_size
+    data_percentage = data_args.dataset_percentage
     set_seed(training_args.seed)
     # ================================== 2. 加载数据集 =======================================
     cnn_dataset = load_dataset(dataset_name, "3.0.0")
@@ -85,9 +86,9 @@ def main():
     accelerator.wait_for_everyone()
         # ================================== 2.3 数据加载器 ======================================
     # 计算需要取出的样本数量
-    train_size = int(len(cnn_dataset["train"]) * 0.1)
-    eval_size = int(len(cnn_dataset["validation"]) * 0.1)
-    test_size = int(len(cnn_dataset["test"]) * 0.1)
+    train_size = int(len(cnn_dataset["train"]) * data_percentage)
+    eval_size = int(len(cnn_dataset["validation"]) * data_percentage)
+    test_size = int(len(cnn_dataset["test"]) * data_percentage)
 
     # 从打乱后的数据集中随机抽取指定数量的数据
     train_dataset = cnn_dataset["train"].shuffle(seed=42).select(range(train_size))
