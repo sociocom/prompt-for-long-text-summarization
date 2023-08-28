@@ -10,5 +10,6 @@
 * results in training and inference contains some full padding segments
   and the generated result is unable to be evaluated
     * try to use no-emoty-mask 
-
 * due to the reprocess of the batch data, the data is not on the same device, and need to be moved by hand
+* prefix-prop trick for memory cell
+* to add a summarization part in decoder structure is a little bit hard
