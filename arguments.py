@@ -105,6 +105,13 @@ class DataTrainingArguments:
             "Metric to monitor defaults to first in eval dictionary"
         },
     )
+    dataset_percentage: Optional[float] = field(
+        default=0.01,
+        metadata={
+            "help": "Percentage of dataset to use, useful for quick debugging."
+        },
+    )
+
  
 @dataclass
 class CustomTrainingArguments(TrainingArguments):
