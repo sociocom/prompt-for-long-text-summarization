@@ -9,7 +9,7 @@ import math
 from typing import List, Optional, Tuple, Union, Iterable
 
 from transformers import (
-    BartPretrainedModel,
+    PreTrainedModel,
     BartForConditionalGeneration,
     BartTokenizer,
 )
@@ -18,6 +18,7 @@ from peft import PrefixTuningConfig, TaskType, get_peft_model
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
+from config import PromptBartConfig
 
 logger = logging.getLogger(__name__)
 
@@ -42,12 +43,12 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 # ============================================
 
 # prefix-tuning/p-tuning v2 version
-class BartPrefixForConditionalGeneration(BartPretrainedModel):
-    def __init__(self, checkpoint, config, peft_config):
+class BartPrefixForConditionalGeneration(PreTrainedModel):
+    config_class = PromptBartConfig
+    def __init__(self, config, **kwargs):
         super().__init__(config)
-        bart_model = BartForConditionalGeneration.from_pretrained(checkpoint)
-        self.model = get_peft_model(bart_model, peft_config)
-        self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
+        self.model = BartForConditionalGeneration(config)
+        self.tokenizer = BartTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         
         self.config = config
         self.segment_alignment = config.segment_alignment
@@ -80,8 +81,8 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         segmented_batch = [
             [sample1_seg1, sample2_seg1, sample3_seg1],
             [sample1_seg2, sample2_seg2, sample3_seg2],
-            [sample1_seg3, None, sample3_seg3],
-            [None, None, sample3_seg4]
+            [sample1_seg3, full_padding, sample3_seg3],
+            [full_padding, full_padding, sample3_seg4]
         ]
         """
         segmented_batch = []
@@ -414,7 +415,7 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
             model_outputs.append(out)
         # print('model_outputs: ', model_outputs)
         # the last segment of each sample and test the first sample's last segment
-        print("decoded_model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
+        # print("decoded_model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
         
         # TODO: need to process fully padding segment
         #       process_output for generate
@@ -461,11 +462,12 @@ class BartPrefixForConditionalGeneration(BartPretrainedModel):
         return out
     
 # prefix-propagation version
-class BartPrefixPropForConditionalGeneration(BartPretrainedModel):
-    def __init__(self, config, checkpoint):
+class BartPrefixPropForConditionalGeneration(PreTrainedModel):
+    config_class = PromptBartConfig
+    def __init__(self, config, **kwargs):
         super().__init__(config)
-        self.model = BartForConditionalGeneration.from_pretrained(checkpoint)
-        self.tokenizer = BartTokenizer.from_pretrained(checkpoint)
+        self.model = BartForConditionalGeneration(config)
+        self.tokenizer = BartTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         
         self.config = config
         self.segment_alignment = config.segment_alignment

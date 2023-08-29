@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 
 # from transformers import Trainer, EarlyStoppingCallback
 # from transformers.trainer_utils import get_last_checkpoint
+from transformers import BartForConditionalGeneration
 from transformers import AutoConfig, AutoTokenizer
 from transformers import get_linear_schedule_with_warmup, set_seed
 
@@ -27,8 +28,8 @@ logger = logging.getLogger(__name__)
 
 from arguments import get_args
 
-from model.summarization import BartPrefixForConditionalGeneration
-from config.custom_config import PromptBartConfig
+from model import BartPrefixForConditionalGeneration
+from config import PromptBartConfig
 from utils import evaluate_utils, trace_malloc
 
 def main():
@@ -126,15 +127,29 @@ def main():
             inference_mode=False,
             num_virtual_tokens=20,
         )
+        
+    # load pretrained checkpoint
+    # pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
+    # model.model.load_state_dict(pretrained_model.state_dict())
+    # model.model = PeftModel.from_pretrained(model.model, 'path_or_name')       
+        
+    # load custom config
     bart_config = AutoConfig.from_pretrained(model_name_or_path)
     custom_config = PromptBartConfig(**bart_config.to_dict())
+    
+    # load pretrained model
+    pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
+    
+    # load custom model
     model = BartPrefixForConditionalGeneration(
-        checkpoint=model_name_or_path,
         config=custom_config,
-        peft_config=peft_config,
-        # accelerator=accelerator, # NOTE: if use accelerator, update grad during seg loop
+        tokenizer_name_or_path=model_name_or_path,
     )
-    model.model.print_trainable_parameters()
+    model.model.load_state_dict(pretrained_model.state_dict())
+    model.model = get_peft_model(
+        model.model,
+        peft_config,
+    )
     
     # optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
