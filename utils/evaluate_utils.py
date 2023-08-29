@@ -51,7 +51,8 @@ class SummarizationMetric():
                 # 当使用分布式训练时，不同设备或节点上的模型生成的输出可能有不同的长度。
                 # 为了进行后续的评估和计算指标，我们需要将这些输出统一为相同的长度。
                 # dim=1的维度是token的维度，这里的pad_index是tokenizer的pad_token_id
-                generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
+                # generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
+                generated_tokens = torch.tensor(generated_tokens[-1]).to(accelerator.device)
                 generated_tokens = accelerator.pad_across_processes(
                     generated_tokens, 
                     dim=1,
@@ -71,8 +72,7 @@ class SummarizationMetric():
                 # Replace -100 in the labels as we can't decode them
                 labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
                 
-                # get the last segment output 
-                generated_tokens = generated_tokens[-1]                
+                # get the last segment output                
                 decoded_preds = tokenizer.batch_decode(
                     generated_tokens, skip_special_tokens=True
                 )

@@ -32,12 +32,12 @@ nohup python3 run.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
---do_train true \
+--do_train false \
 --do_eval false \
 --do_predict true \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 1 \
 --num_train_epochs 1 \
---dataset_percentage 0.01 \
+--dataset_percentage 0.005 \
 "$@" > $log_filename 2>&1 &

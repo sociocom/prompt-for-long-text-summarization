@@ -1,5 +1,21 @@
 # Debug记录
 
+## 语法问题
+### Python
+#### __init.py__
+> https://muyuuuu.github.io/2021/07/11/python-init-file/
+```python
+├─ main.py
+└─ network
+       ├─ __init__.py
+       ├─ msg
+       │    └─ info
+       │           └─ send.py(send_msg function)
+       └─ parse.py
+如果在__init__.py里写 from .msg.info.send import *
+则可以直接在main.py里
+from network import send_msg
+```
 ## 环境问题
 ### 一：WANDB
 1. 没有权限写入/tmp
@@ -228,6 +244,14 @@ custom_config = CustomBartConfig(
 
 * 一般需要使用labels 而且注意一定要以eos_token开头
 
+### 四：自定义模型
+> https://huggingface.co/docs/transformers/custom_models
+#### 1. 自定义config
+**有三件必须要做的事情**
+1. 需要从PretrainedConfig类继承: 只有这样才能使用huggingface的通用方法
+2. 必须要接收kwargs参数
+3. 需要把kwargs参数传递给super类的__init__参数
+
 ## Model Architecture
 ### 一：Auto Regressive & Teacher Forcing
 > 引发了exposure bias： [Bridging the Gap between Training and Inference for Neural Machine Translation](https://aclanthology.org/P19-1426/)
@@ -237,12 +261,11 @@ custom_config = CustomBartConfig(
 2. decoder_input_ids不需要手动生成, 模型会自动从labels转换
 3. past_key_values只能用在decoder部分 (去年的版本？？现在是否已经更新了呢)
     > https://github.com/huggingface/transformers/issues/15591
-    > https://blog.csdn.net/weixin_42953627/article/details/125586001
 4. 一个模型的max_size取决于max_position_embeddings: 
     > https://github.com/huggingface/transformers/issues/4224
-
 ```bash
 nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
 ```
-
 5. 如何删除已经被git追踪的文件：git rm -r --cached "filename"
+6. using prefix-tuning in BART
+> https://blog.csdn.net/weixin_42953627/article/details/125586001
