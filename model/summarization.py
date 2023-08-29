@@ -258,13 +258,18 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
         
         # [sample1_seg1, sample2_seg1, sample3_seg1,....] up to batch_size
         # Some of the segments are None like: [sample1_seg3, None, sample3_seg3]
-        non_empty_mask = [s is not None for s in segment_input_ids]
+        # TODO: need another method to deal with this situation
+        # segment_input_ids : batch_size * seq_len
+        for idx, seg in enumerate(segment_input_ids):
+            print('segment_input_ids{idx}:{seg}'.format(idx=idx, seg=seg))
+            
+        non_empty_mask = [not self.is_padding(s) for s in segment_input_ids]
+        print('non_empty_mask: ', non_empty_mask)
         # all the segments are None, due to the max_n_segments >> the number of segments        
         if sum(non_empty_mask) == 0:
             return None, non_empty_mask
         
         # convert list to tensor
-        
         segment_input_ids = [tensor.to(self.model.device) if tensor is not None else None for tensor in segment_input_ids]
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
         seg_kwargs['input_ids'] = input_ids
@@ -273,7 +278,7 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
             seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
         
         if seg_kwargs['labels'] is not None:
-            seg_kwargs['labels'] = torch.stack([el for el, m in zip(segment_label, non_empty_mask) if m])
+            seg_kwargs['labels'] = torch.stack([l for l in segment_label if l is not None])
         
         # # generate prompts 
         # batch_size = input_ids.shape[0]
@@ -292,6 +297,9 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
         mask[tensor == self.pad_token_id] = 0
         return mask
     
+    def is_padding(self, tensor):
+        return tensor[0] == self.pad_token_id
+        
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -348,11 +356,9 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
             # TODO: can't control the number of gradient accumulation steps now
             if self.config.bptt_depth != -1:
                 raise NotImplementedError
-            
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
-
             out = self.model(**seg_kwargs)
             model_outputs.append(out)
             # memory_tokens = out.past_key_values
@@ -401,7 +407,9 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
         )
         
         model_outputs = []
+        final_index = []
         for seg_num, segment in enumerate(zip(*segmented)):
+            
             in_ids, attn_mask, l = segment
             
             if self.config.bptt_depth != -1:
@@ -410,16 +418,27 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
-            
+            print('-----------------------seg_num{}---------------------------'.format(seg_num))
+            print('non_empty_mask: ', non_empty_mask)
             out = self.model.generate(**seg_kwargs)
+            
+            # just save the last non-padding segment output
+
             model_outputs.append(out)
-        # print('model_outputs: ', model_outputs)
-        # the last segment of each sample and test the first sample's last segment
-        # print("decoded_model_outputs: ", self.tokenizer.decode(model_outputs[-1][0], skip_special_tokens=True))
-        
-        # TODO: need to process fully padding segment
-        #       process_output for generate
-        return model_outputs
+
+            if not len(final_index):
+                for index, non_pad in enumerate(non_empty_mask):
+                    final_index.append(seg_num)
+                    
+            else:
+                for index, non_pad in enumerate(non_empty_mask):
+                    if non_pad:
+                        final_index[index] = seg_num
+                        
+        final_outputs = []
+        for idx, _ in enumerate(non_empty_mask):
+            final_outputs.append(model_outputs[(final_index[idx])][idx])
+        return final_outputs
         
     def process_outputs(self, input_ids, model_outputs, output_attentions, output_hidden_states):
         out = model_outputs[-1] # get the last segment output

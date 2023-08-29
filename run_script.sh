@@ -39,5 +39,5 @@ nohup python3 run.py \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 1 \
 --num_train_epochs 1 \
---dataset_percentage 0.005 \
+--dataset_percentage 0.001 \
 "$@" > $log_filename 2>&1 &
