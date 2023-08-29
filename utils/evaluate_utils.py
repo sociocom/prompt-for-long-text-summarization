@@ -3,6 +3,7 @@ import nltk
 nltk.download("punkt")
 from nltk.tokenize import sent_tokenize
 from tqdm import tqdm
+import torch.nn.functional as F
 from .trace_malloc import * 
 
 # 用于计算 ROUGE 指标的函数
@@ -52,13 +53,15 @@ class SummarizationMetric():
                 # 为了进行后续的评估和计算指标，我们需要将这些输出统一为相同的长度。
                 # dim=1的维度是token的维度，这里的pad_index是tokenizer的pad_token_id
                 # generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
-                generated_tokens = torch.tensor(generated_tokens[-1]).to(accelerator.device)
+                # generated_tokens = generated_tokens[-1].clone().detach().to(accelerator.device)
+
+                generated_tokens = torch.stack([F.pad(t, pad=(0, target_max_length - t.size(0))) for t in generated_tokens])
+
                 generated_tokens = accelerator.pad_across_processes(
                     generated_tokens, 
                     dim=1,
                     pad_index=tokenizer.pad_token_id,
                 )
-                
                 labels = accelerator.pad_across_processes(
                     labels, 
                     dim=1, 
@@ -83,7 +86,8 @@ class SummarizationMetric():
                 decoded_preds, decoded_labels = self.postprocess_text(
                     decoded_preds, decoded_labels
                 )
-                
+                print('decoded_preds: ', decoded_preds)
+                print('decoded_labels: ', decoded_labels)
                 metric.add_batch(predictions=decoded_preds, references=decoded_labels)
             
                 # # 解码pred成自然语言文本
