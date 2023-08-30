@@ -24,7 +24,7 @@ export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=cnn_dailymail
 checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/ 
 
-batch_size=8
+batch_size=4
 eval_batch_size=8
 
 # 执行命令并将输出重定向到日志文件

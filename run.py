@@ -166,7 +166,7 @@ def main():
         model, train_dataloader, eval_dataloader, test_dataloader
     )
     accelerator.print(model)
-    
+    model.model.print_trainable_parameters()
     # ================================== 可以省略 ======================================
     # 如果不设置 deepspeed 参数，则 Accelerator 默认使用 PyTorch 的原生分布式训练机制
     """
