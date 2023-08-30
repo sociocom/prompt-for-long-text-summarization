@@ -37,6 +37,7 @@ class SummarizationMetric():
         
         with TorchTracemalloc() as tracemalloc:
             for step, batch in enumerate(tqdm(dataloader)):
+                print('----------{}----------'.format(step))
                 labels = batch["labels"]
                 # 对于peft的模型直接收**batch的形式
                 # 不能单独传batch和attention_mask
@@ -55,8 +56,13 @@ class SummarizationMetric():
                 # generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
                 # generated_tokens = generated_tokens[-1].clone().detach().to(accelerator.device)
 
-                generated_tokens = torch.stack([F.pad(t, pad=(0, target_max_length - t.size(0))) for t in generated_tokens])
-
+                generated_tokens = torch.stack([
+                    F.pad(
+                    t, pad=(0, target_max_length - t.size(0)), value=tokenizer.pad_token_id)
+                    for t in generated_tokens
+                    ]
+                )
+                print('generated_tokens: ', generated_tokens)
                 generated_tokens = accelerator.pad_across_processes(
                     generated_tokens, 
                     dim=1,
