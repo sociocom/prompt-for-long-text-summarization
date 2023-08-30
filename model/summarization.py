@@ -41,7 +41,11 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 # ============================================
 # =============== BART model =================
 # ============================================
-
+class BartRMTForConditionalGeneration(PreTrainedModel):
+    config_class = PromptBartConfig
+    def __init__(self, config, **kwargs):
+        super().__init__(config)
+        
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(PreTrainedModel):
     config_class = PromptBartConfig
@@ -57,7 +61,6 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
         self.n_layer = config.num_hidden_layers
         self.n_head = config.num_attention_heads
         self.n_embd = config.hidden_size // config.num_attention_heads
-        # self.extend_word_embeddings(config.pre_seq_len, tokenizer)
         
         # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
         self.segment_size = config.input_size - self.pre_seq_len - self.tokenizer.num_special_tokens_to_add()
@@ -183,12 +186,6 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
                 self.special_token_ids.append(token_id)
             else:
                 setattr(self, token, None)
-                
-    # def extend_word_embeddings(self, tokenizer):
-    #     vocab_size = self.model.config.vocab_size
-    #     # NOTE: Really necessary???
-    #     extended_vocab_size = vocab_size + self.config.pre_seq_len
-    #     self.pre_seq_len = self.config.pre_seq_len
 
     # Memory mechanism like RNN
     def forget_and_memory(self,):
@@ -260,11 +257,8 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
         # Some of the segments are None like: [sample1_seg3, None, sample3_seg3]
         # TODO: need another method to deal with this situation
         # segment_input_ids : batch_size * seq_len
-        for idx, seg in enumerate(segment_input_ids):
-            print('segment_input_ids{idx}:{seg}'.format(idx=idx, seg=seg))
             
         non_empty_mask = [not self.is_padding(s) for s in segment_input_ids]
-        print('non_empty_mask: ', non_empty_mask)
         # all the segments are None, due to the max_n_segments >> the number of segments        
         if sum(non_empty_mask) == 0:
             return None, non_empty_mask
@@ -418,8 +412,6 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
-            print('-----------------------seg_num{}---------------------------'.format(seg_num))
-            print('non_empty_mask: ', non_empty_mask)
             out = self.model.generate(**seg_kwargs)
             
             # just save the last non-padding segment output
@@ -495,7 +487,6 @@ class BartPrefixPropForConditionalGeneration(PreTrainedModel):
         self.n_layer = config.num_hidden_layers
         self.n_head = config.num_attention_heads
         self.n_embd = config.hidden_size // config.num_attention_heads
-        # self.extend_word_embeddings(config.pre_seq_len, tokenizer)
         
         # tokenizer.num_special_tokens_to_add()cal the number of special tokens needed to add except [SEP]
         self.segment_size = config.input_size - self.pre_seq_len - self.tokenizer.num_special_tokens_to_add()
