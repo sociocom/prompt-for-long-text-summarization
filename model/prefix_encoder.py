@@ -75,3 +75,7 @@ class PrefixEncoder(nn.Module):
             past_key_values = self.embedding(prefix)
             
         return past_key_values
+    
+class MemoryEncoder(nn.Module):
+    def __init__(config):
+        super().__init__()
