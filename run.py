@@ -150,6 +150,7 @@ def main():
             tokenizer_name_or_path=model_name_or_path,
         )
         model.model.load_state_dict(pretrained_model.state_dict())
+        model.extend_word_embeddings(custom_config.pre_seq_len, tokenizer)
     elif training_args.training_strategy == "PrefixTuningWithRMT":
         model = BartPrefixForConditionalGeneration(
             config=custom_config,
