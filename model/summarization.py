@@ -45,7 +45,367 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
     config_class = PromptBartConfig
     def __init__(self, config, **kwargs):
         super().__init__(config)
+        self.model = BartForConditionalGeneration(config)
+        self.tokenizer = BartTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         
+        self.config = config
+        self.segment_alignment = config.segment_alignment
+        self.extract_special_tokens(self.tokenizer)
+        self.pre_seq_len = config.pre_seq_len
+        self.n_layer = config.num_hidden_layers
+        self.n_head = config.num_attention_heads
+        self.n_embd = config.hidden_size // config.num_attention_heads   
+        self.segment_size = config.input_size - self.pre_seq_len - self.tokenizer.num_special_tokens_to_add()
+        
+        if 'sep_token' in self.tokenizer.special_tokens_map:
+            self.segment_size -= 1      
+            
+    def pad_and_segment(self, input_ids, labels=None):
+
+        segmented_batch = []
+        segmented_batch_labels = []
+            
+        # inference mode
+        if labels is None:
+            labels = [None] * input_ids.shape[0]
+        batch_labels = labels
+        
+        # input_ids: [batch_size, seq_len]
+        for seq, label in zip(input_ids, batch_labels):
+            
+            # pytorch syntax: element-wise operation
+            drop_mask = sum([seq == t for t in self.special_token_ids])
+            # Convert non-zero elements to 1
+            drop_mask = torch.tensor([1 if t != 0 else 0 for t in drop_mask])
+            
+            # bool type slice for tensor type
+            # remove special tokens
+            seq = seq[(1 - drop_mask).bool()]
+            
+            # truncate the sequence to the maximum length
+            seq = seq[:self.segment_size * self.config.max_n_segments]
+            
+            if label is not None:
+                label_drop_mask = sum([label == t for t in self.special_token_ids + [-100]])
+                label_drop_mask = torch.tensor([1 if t != 0 else 0 for t in label_drop_mask])
+                label = label[(1-label_drop_mask).bool()]
+                # TODO：label = label[:self.config.sum_max_size * self.config.max_n_segments]
+                label = label[:self.segment_size * self.config.max_n_segments]
+            
+            align = self.segment_alignment
+            if align in {'right', None}:
+                split_inds = (list(range(len(seq), 0, -self.segment_size)) + [0])[::-1]
+            elif align == 'left':
+                split_inds = list(range(0, len(seq), self.segment_size)) + [len(seq)]
+            elif align == 'center':
+                n_seg = math.ceil(len(seq) / self.segment_size)
+                split_inds = list(range(0, len(seq), math.ceil(len(seq) / n_seg))) + [len(seq)]
+            else:
+                raise NotImplementedError
+
+            input_segments = [seq[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+            input_segments = [self.pad_add_special_tokens(t, self.config.input_size) for t in input_segments]
+            
+            # add empty segment markers if needed
+            n_empty_segments = self.config.max_n_segments - len(input_segments)
+            # input_segments:
+            input_segments = input_segments + [self.get_full_padding_segment()] * n_empty_segments
+            
+            # segmented_batch: 
+            segmented_batch.append(input_segments)
+
+            if label is not None:
+                # full_segment_size = len(input_segments)
+                end_index = math.ceil(len(label) // (full_segment_size := len(input_segments)))
+                labels_segments = [label[:(end_index*(i+1))] for i in range(full_segment_size)]
+                labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
+                labels_segments = labels_segments + [self.get_full_padding_segment()] * n_empty_segments
+                segmented_batch_labels.append(labels_segments)
+                
+        segmented_batch = [[sample[seg_num] for sample in segmented_batch] 
+                            for seg_num in range(self.config.max_n_segments)]
+
+        segmented_batch_labels = [[sample[seg_num] for sample in segmented_batch_labels]
+                                  for seg_num in range(self.config.max_n_segments)]
+        return segmented_batch, segmented_batch_labels
+        
+    def get_full_padding_segment(self,):
+        padding_segment = torch.tensor([self.pad_token_id for _ in range(self.config.input_size)])
+        return padding_segment
+    
+    def extract_special_tokens(self, tokenizer):
+        self.pad_token_id = tokenizer.pad_token_id
+        self.special_token_ids = [tokenizer.pad_token_id]
+        for token in ['cls_token', 'sep_token', 'eos_token', 'bos_token']:
+            token_id = getattr(tokenizer, f'{token}_id')
+            if token_id is not None:
+                self.register_buffer(token, torch.tensor([token_id]))
+                self.special_token_ids.append(token_id)
+            else:
+                setattr(self, token, None)
+
+    # Memory mechanism like RNN
+    def forget_and_memory(self,):
+        raise NotImplementedError    
+           
+    def pad_add_special_tokens(self, tensor, segment_size, 
+                               prompts=None, prompt_attention_mask=None, # maybe better to use pre_seq_len and generate prompts attention mask?
+                               add_to='input_ids'):
+        """
+        bart tokenizer:
+        {'bos_token': '<s>', 0
+         'eos_token': '</s>', 2
+         'unk_token': '<unk>', 3
+         'sep_token': '</s>', 0
+         'pad_token': '<pad>', 1
+         'cls_token': '<s>', 0
+         'mask_token': '<mask>' 50264
+        }
+        """
+        input_elements = []
+        # Add special tokens: <s> and </s> to the input sequence
+        # For prefix-prop
+        if prompts is not None:
+            if add_to == 'inputs':
+                input_elements += [self.cls_token, prompts, self.sep_token, tensor, self.sep_token]
+            # For Bart, only the pad token is 0 in attention_mask
+            elif add_to == 'attention_mask':
+                mask_value = torch.ones((1), device=tensor.device)
+                input_elements += [mask_value, prompt_attention_mask, mask_value, tensor, mask_value]
+            # As a encoder-decoder model：is not needed to add prompt to labels
+            elif add_to == 'labels':
+                # NOTE: for Seq2Seq Models labels are used for decoder_input_ids in training
+                # and decoder_input_ids must start with the eos_token
+                input_elements += [self.eos_token, tensor, self.sep_token]
+        # For prefix-tuning/p-tuning v2
+        else:
+            if add_to == 'input_ids':
+                input_elements += [self.cls_token, tensor, self.sep_token]
+            elif add_to == 'attention_mask':
+                mask_value = torch.ones((1), device=tensor.device)
+                input_elements += [mask_value, tensor, mask_value]
+            elif add_to == 'labels':
+                input_elements += [self.eos_token, tensor, self.sep_token]
+        tensor = torch.cat(input_elements)
+        
+        # Add padding tokens
+        # TODO: implement summary module
+        #       now config.sum_token_size default = 0
+        pad_size = segment_size - tensor.shape[0] - self.config.sum_token_size
+        if pad_size > 0:
+            if add_to == 'input_ids':
+                tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
+            elif add_to == 'attention_mask':
+                tensor = F.pad(tensor, (0, pad_size), value=0)
+            elif add_to == 'labels':
+                # for Seq2Seq labels need to be pad by -100
+                tensor = F.pad(tensor, (0, pad_size), value=-100)
+        return tensor  
+    
+    def prepare_kwargs(self, segment, kwargs):
+        segment_input_ids, segment_label = segment
+        seg_kwargs = dict(**kwargs)
+            
+        non_empty_mask = [not self.is_padding(s) for s in segment_input_ids]
+        # all the segments are None, due to the max_n_segments >> the number of segments        
+        if sum(non_empty_mask) == 0:
+            return None, non_empty_mask
+        
+        # convert list to tensor
+        segment_input_ids = [tensor.to(self.model.device) if tensor is not None else None for tensor in segment_input_ids]
+        input_ids = torch.stack([s for s in segment_input_ids if s is not None])
+        embeddings = self.model.get_input_embeddings()
+        seg_kwargs['inputs_embeds'] = embeddings(input_ids)
+        print(f"{seg_kwargs['inputs_embeds'].shape=}")
+        seg_kwargs['input_ids'] = None
+        
+        seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
+        
+        if seg_kwargs['labels'] is not None:
+            seg_kwargs['labels'] = torch.stack([l for l in segment_label if l is not None])
+        
+        return seg_kwargs, non_empty_mask   
+      
+    def get_attention_mask(self, tensor):
+        mask = torch.ones_like(tensor)
+        mask[tensor == self.pad_token_id] = 0
+        return mask
+    
+    def is_padding(self, tensor):
+        return tensor[0] == self.pad_token_id     
+    
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.LongTensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        decoder_head_mask: Optional[torch.Tensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, Seq2SeqLMOutput]:
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
+            config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
+            (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
+
+        Returns:
+        """ 
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        kwargs = {
+            'attention_mask': attention_mask, 
+            'inputs_embeds': inputs_embeds,
+            'labels': labels, 
+            'output_attentions': output_attentions,
+            'output_hidden_states': output_hidden_states, 
+            'return_dict': return_dict,
+        }
+
+        # segmented: [max_n_segments, batch_size, segment_size]
+        # !!! Note: the batch_size is not the same as the input batch_size
+        segmented = self.pad_and_segment(
+            input_ids=input_ids,
+            labels=labels,
+        )
+        
+        model_outputs = []
+        memory = None
+        for seg_num, segment in enumerate(zip(*segmented)):
+            in_ids, l = segment
+            
+            if self.config.bptt_depth != -1:
+                raise NotImplementedError
+            
+            seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
+            if sum(non_empty_mask) == 0:
+                continue
+            if memory is not None:
+                # print(f"{memory.shape=}")
+                # print(f"{seg_kwargs['inputs_embeds'][:, :self.pre_seq_len, :].shape=}")
+                seg_kwargs['inputs_embeds'][:, :self.pre_seq_len, :] = memory
+            
+            out = self.model(**seg_kwargs)
+            # (batch_size, sequence_length, hidden_size) 
+            memory = out.encoder_last_hidden_state[:, :self.pre_seq_len]
+            model_outputs.append(out)
+        
+        out = self.process_outputs(model_outputs, output_attentions, output_hidden_states)
+        return out    
+    
+    @torch.no_grad()
+    def generate(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        max_length: Optional[int] = None,
+        min_length: Optional[int] = None,
+        do_sample: Optional[bool] = None,
+        early_stopping: Optional[bool] = None,
+        num_beams: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
+        bad_words_ids: Optional[Iterable[int]] = None,
+        bos_token_id: Optional[int] = None,
+        pad_token_id: Optional[int] = None,
+        eos_token_id: Optional[int] = None,
+        length_penalty: Optional[float] = None,
+        no_repeat_ngram_size: Optional[int] = None,
+        num_return_sequences: Optional[int] = None,
+        attention_mask: Optional[torch.LongTensor] = None,
+        decoder_start_token_id: Optional[int] = None,
+        use_cache: Optional[bool] = None,
+        **model_specific_kwargs
+    ) -> torch.LongTensor:
+
+        kwargs = {
+            'input_ids': input_ids,
+            'num_beams': num_beams,
+            'min_length': min_length,
+            'max_length': max_length,
+            'labels': None,
+            'attention_mask': None
+        }
+        
+        segmented = self.pad_and_segment(
+            input_ids=input_ids,
+        )
+        
+        model_outputs = []
+        final_index = []
+        memory = None
+        for seg_num, segment in enumerate(zip(*segmented)):
+            
+            in_ids, l = segment
+            
+            if self.config.bptt_depth != -1:
+                raise NotImplementedError
+            
+            seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
+            if sum(non_empty_mask) == 0:
+                continue
+            
+            if memory is not None:
+                seg_kwargs['inputs_embeds'][:, :self.pre_seq_len, :] = memory            
+            out = self.model.generate(**seg_kwargs)
+                
+            model_outputs.append(out)
+
+            if not len(final_index):
+                for index, non_pad in enumerate(non_empty_mask):
+                    final_index.append(seg_num)
+                    
+            else:
+                for index, non_pad in enumerate(non_empty_mask):
+                    if non_pad:
+                        final_index[index] = seg_num
+                        
+        final_outputs = []
+        for idx, _ in enumerate(non_empty_mask):
+            final_outputs.append(model_outputs[(final_index[idx])][idx])
+        return final_outputs    
+    
+    def process_outputs(self, model_outputs, output_attentions, output_hidden_states):
+        rmt_out = model_outputs[-1]
+
+        segment_keys = ['loss']
+        if output_attentions:
+            segment_keys.append('attentions')
+        if output_hidden_states:
+            segment_keys.append('hidden_states')
+
+        extracted = {}
+        for seg_num, out in enumerate(model_outputs):
+            for key, value in out.items():
+                if any([sk in key for sk in segment_keys]):
+                    extracted[f'{key}_{seg_num}'] = value
+
+        # if self.rmt_config['sum_loss']:
+        losses = [out['loss'] for out in model_outputs]
+        extracted['loss'] = torch.stack(losses).mean(dim=0)
+
+        for key, value in extracted.items():
+            rmt_out[key] = value
+        
+        # drop unnecessary hiddens to save memory
+        if not output_hidden_states:
+            for key in rmt_out.keys():
+                if 'hidden_state' in key:
+                    rmt_out[key] = None
+
+        return rmt_out 
+    
 # prefix-tuning/p-tuning v2 version
 class BartPrefixForConditionalGeneration(PreTrainedModel):
     config_class = PromptBartConfig

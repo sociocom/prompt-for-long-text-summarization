@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 
 from arguments import get_args
 
-from model import BartPrefixForConditionalGeneration
+from model import (
+    BartRMTForConditionalGeneration, 
+    BartPrefixForConditionalGeneration, 
+    BartPrefixPropForConditionalGeneration
+)
 from config import PromptBartConfig
 from utils import evaluate_utils, trace_malloc
 
@@ -139,17 +143,25 @@ def main():
     
     # load pretrained model
     pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
-    
-    # load custom model
-    model = BartPrefixForConditionalGeneration(
-        config=custom_config,
-        tokenizer_name_or_path=model_name_or_path,
-    )
-    model.model.load_state_dict(pretrained_model.state_dict())
-    model.model = get_peft_model(
-        model.model,
-        peft_config,
-    )
+
+    if training_args.training_strategy == "RMT":
+        model = BartRMTForConditionalGeneration(
+            config=custom_config,
+            tokenizer_name_or_path=model_name_or_path,
+        )
+        model.model.load_state_dict(pretrained_model.state_dict())
+    elif training_args.training_strategy == "PrefixTuningWithRMT":
+        model = BartPrefixForConditionalGeneration(
+            config=custom_config,
+            tokenizer_name_or_path=model_name_or_path,
+        )
+        model.model.load_state_dict(pretrained_model.state_dict())
+        model.model = get_peft_model(
+            model.model,
+            peft_config,
+        )
+    elif training_args.training_strategy == "PrefixPropWithRMT":
+        raise NotImplementedError
     
     # optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
@@ -166,7 +178,8 @@ def main():
         model, train_dataloader, eval_dataloader, test_dataloader
     )
     accelerator.print(model)
-    model.model.print_trainable_parameters()
+    if training_args.training_strategy == "PrefixTuningWithRMT":
+        model.model.print_trainable_parameters()
     # ================================== 可以省略 ======================================
     # 如果不设置 deepspeed 参数，则 Accelerator 默认使用 PyTorch 的原生分布式训练机制
     """

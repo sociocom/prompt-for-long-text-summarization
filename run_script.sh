@@ -37,7 +37,8 @@ nohup python3 run.py \
 --do_predict true \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
---predict_epoch 2 \
---num_train_epochs 10 \
---dataset_percentage 0.1 \
+--predict_epoch 1 \
+--num_train_epochs 1 \
+--dataset_percentage 0.001 \
+--training_strategy "RMT" \
 "$@" > $log_filename 2>&1 &
