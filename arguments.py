@@ -4,7 +4,7 @@ from typing import Optional, Literal
 from dataclasses import dataclass, field
 
 DATASETS = ["cnn_dailymail", "xsum", "NYT"]
-    
+TRAINGING_STRATEGIES = ["RMT", "PrefixTuningWithRMT", "PrefixPropWithRMT"]
 @dataclass
 class ModelArguments:
     """
@@ -120,6 +120,13 @@ class CustomTrainingArguments(TrainingArguments):
     )
     predict_epoch: int = field(
         default=5, metadata={"help": "Ever how many epochs to run a predict"}
+    )
+    training_strategy: str = field(
+        default="RMT",
+        metadata={
+            "help": "The training strategy to use",
+            "choices": TRAINGING_STRATEGIES,
+        },
     )
     
 def get_args():
