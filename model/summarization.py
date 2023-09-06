@@ -51,6 +51,7 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         self.config = config
         self.segment_alignment = config.segment_alignment
         self.extract_special_tokens(self.tokenizer)
+        # self.extend_word_embeddings(config.pre_seq_len, self.tokenizer)
         self.pre_seq_len = config.pre_seq_len
         self.n_layer = config.num_hidden_layers
         self.n_head = config.num_attention_heads
@@ -143,7 +144,24 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                 self.special_token_ids.append(token_id)
             else:
                 setattr(self, token, None)
+                
+    def extend_word_embeddings(self, num_mem_tokens, tokenizer):     
+        vocab_size = self.model.config.vocab_size
+        extended_vocab_size = vocab_size + num_mem_tokens
+        # self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
 
+        special_tokens = tokenizer.special_tokens_map
+        mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+        self.model.embeddings = self.model.get_input_embeddings()
+        
+    def set_memory(self, input_shape):
+        memory = self.model.embeddings(self.mem_token_ids)
+        memory = memory.repeat(input_shape[0], 1, 1)
+        return memory        
+    
     # Memory mechanism like RNN
     def forget_and_memory(self,):
         raise NotImplementedError    
@@ -214,9 +232,9 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         # convert list to tensor
         segment_input_ids = [tensor.to(self.model.device) if tensor is not None else None for tensor in segment_input_ids]
         input_ids = torch.stack([s for s in segment_input_ids if s is not None])
-        embeddings = self.model.get_input_embeddings()
-        seg_kwargs['inputs_embeds'] = embeddings(input_ids)
-        print(f"{seg_kwargs['inputs_embeds'].shape=}")
+
+        seg_kwargs['inputs_embeds'] = self.model.embeddings(input_ids)
+        # print(f"{seg_kwargs['inputs_embeds'].shape=}")
         seg_kwargs['input_ids'] = None
         
         seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
@@ -280,7 +298,7 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         )
         
         model_outputs = []
-        memory = None
+        memory = self.set_memory(input_ids.shape)
         for seg_num, segment in enumerate(zip(*segmented)):
             in_ids, l = segment
             
@@ -290,14 +308,12 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
-            if memory is not None:
-                # print(f"{memory.shape=}")
-                # print(f"{seg_kwargs['inputs_embeds'][:, :self.pre_seq_len, :].shape=}")
-                seg_kwargs['inputs_embeds'][:, :self.pre_seq_len, :] = memory
-            
+
+            seg_kwargs['inputs_embeds'][:, self.memory_position] = memory
             out = self.model(**seg_kwargs)
+            
             # (batch_size, sequence_length, hidden_size) 
-            memory = out.encoder_last_hidden_state[:, :self.pre_seq_len]
+            memory = out.encoder_last_hidden_state[:, self.memory_position]
             model_outputs.append(out)
         
         out = self.process_outputs(model_outputs, output_attentions, output_hidden_states)
