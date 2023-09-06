@@ -868,14 +868,12 @@ class BartPrefixPropForConditionalGeneration(PreTrainedModel):
         self.segment_size = config.input_size - self.pre_seq_len - self.tokenizer.num_special_tokens_to_add()
         if 'sep_token' in self.tokenizer.special_tokens_map:
             self.segment_size -= 1
-        
-        # TODO: forget some part of long range memory and add new memory
 
         for param in self.model.parameters():
             param.requires_grad = False
 
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
-        self.prefix_encoder = PrefixEncoder(config)
+        self.prefix_encoder = PrefixEncoder(config, propagate_prefix=config.propagate_prefix)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         
         model_param = 0

@@ -24,6 +24,7 @@ class PromptBartConfig(BartConfig):
                  max_n_segments=4,
                  bptt_depth=-1,
                  prefix_projection=False, 
+                 propagate_prefix=True,
                  hidden_dropout_prob=0.1,
                  segment_alignment='left',
                  sum_token_size=0,
@@ -36,6 +37,7 @@ class PromptBartConfig(BartConfig):
         self.max_n_segments = max_n_segments
         self.bptt_depth = bptt_depth
         self.prefix_projection = prefix_projection # whether to use reparametrization trick
+        self.propagate_prefix = propagate_prefix # whether to propagate the prefix between layers
         self.hidden_dropout_prob = hidden_dropout_prob # dropout for prefix encoder
         self.segment_alignment = segment_alignment # how to segment the input sequence
         self.sum_token_size = sum_token_size # the size of summary tokens
