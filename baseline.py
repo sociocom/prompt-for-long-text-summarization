@@ -245,7 +245,7 @@ def main():
 
     # ================================== 2.1 加载tokenizer ======================================
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    target_max_length = 128
+    target_max_length = 142
     # target_max_length = max([len(tokenizer(x, truncation=True, padding='max_length')['input_ids']) for x in cnn_dataset['train'][label_column]])
     
     # ================================== 2.2 数据预处理 ======================================

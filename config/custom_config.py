@@ -26,7 +26,7 @@ class PromptBartConfig(BartConfig):
                  prefix_projection=False, 
                  propagate_prefix=True,
                  hidden_dropout_prob=0.1,
-                 segment_alignment='left',
+                 segment_alignment='right',
                  sum_token_size=0,
                  label_max_size=256,
                  sum_loss=True,
