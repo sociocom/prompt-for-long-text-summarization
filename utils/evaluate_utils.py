@@ -30,7 +30,8 @@ class SummarizationMetric():
                           dataloader, metric, 
                           model, tokenizer,
                           accelerator,
-                          target_max_length,
+                          target_max_length=142,
+                          min_length=56,
                           batch_size=16,
                           column_text="article",
                           column_summary="highlights"):
@@ -46,9 +47,10 @@ class SummarizationMetric():
                     generated_tokens = accelerator.unwrap_model(model).generate(
                         **batch,
                         # sysnced_gpus=is_ds_zero3,
-                        length_penalty=0.8,
+                        length_penalty=2.0,
                         num_beams=4,
                         max_length=target_max_length,
+                        min_length=56,
                     )
                 # 当使用分布式训练时，不同设备或节点上的模型生成的输出可能有不同的长度。
                 # 为了进行后续的评估和计算指标，我们需要将这些输出统一为相同的长度。
