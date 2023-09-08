@@ -38,6 +38,9 @@ from utils import evaluate_utils, trace_malloc
 
 def main():
     model_args, data_args, training_args = get_args()
+    # print("model_args: ", model_args)
+    # print("data_args: ", data_args)
+    # print("training_args: ", training_args)
     # ================================== 1. 定义模型的超参数 ================================== 
     accelerator = Accelerator() # device_placement="cuda:0"
     model_name_or_path = model_args.model_name_or_path
@@ -45,6 +48,7 @@ def main():
     text_column = 'article'
     label_column = 'highlights'
     lr = training_args.learning_rate
+    print(f'{lr=}')
     num_epochs = int(training_args.num_train_epochs)
     train_batch_size = training_args.per_device_train_batch_size
     eval_batch_size = training_args.per_device_eval_batch_size
@@ -52,10 +56,9 @@ def main():
     set_seed(training_args.seed)
     # ================================== 2. 加载数据集 =======================================
     cnn_dataset = load_dataset(dataset_name, "3.0.0")
-
     # ================================== 2.1 加载tokenizer ======================================
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    target_max_length = 256
+    target_max_length = 142
     # ================================== 2.2 数据预处理 ======================================
     def preprocess_function(examples):
         inputs = examples[text_column]
@@ -89,7 +92,7 @@ def main():
             desc="Running tokenizer on dataset",
         )
     accelerator.wait_for_everyone()
-        # ================================== 2.3 数据加载器 ======================================
+    # ================================== 2.3 数据加载器 ======================================
     # 计算需要取出的样本数量
     train_size = int(len(cnn_dataset["train"]) * data_percentage)
     eval_size = int(len(cnn_dataset["validation"]) * data_percentage)
@@ -123,7 +126,7 @@ def main():
         pin_memory=True,
     )        
     # ================================== 3. 加载模型 ======================================
-    if model_args.peft_config_name is not None:
+    if model_args.peft_config_name is not None and training_args.training_strategy == "PrefixTuningWithRMT":
         peft_config = PrefixTuningConfig.from_pretrained(model_args.peft_config_name)
     else:
         peft_config = PrefixTuningConfig(
@@ -139,8 +142,11 @@ def main():
         
     # load custom config
     bart_config = AutoConfig.from_pretrained(model_name_or_path)
-    custom_config = PromptBartConfig(**bart_config.to_dict())
-    
+    custom_config = PromptBartConfig(
+        pre_seq_len=model_args.pre_seq_len,
+        **bart_config.to_dict()
+    )
+    print(custom_config)
     # load pretrained model
     pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
 

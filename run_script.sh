@@ -24,7 +24,7 @@ export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=cnn_dailymail
 checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/ 
 
-batch_size=4
+batch_size=8
 eval_batch_size=8
 
 # 执行命令并将输出重定向到日志文件
@@ -33,12 +33,14 @@ nohup python3 run.py \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
 --do_train true \
---do_eval true \
+--do_eval false \
 --do_predict true \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
---predict_epoch 2 \
+--predict_epoch 1 \
 --num_train_epochs 10 \
 --dataset_percentage 0.1 \
+--pre_seq_len 20 \
 --training_strategy "RMT" \
+--learning_rate 5e-3 \
 "$@" > $log_filename 2>&1 &
