@@ -4,7 +4,7 @@ from typing import Optional, Literal
 from dataclasses import dataclass, field
 
 DATASETS = ["cnn_dailymail", "xsum", "NYT"]
-TRAINGING_STRATEGIES = ["RMT", "PrefixTuningWithRMT", "PrefixPropWithRMT"]
+TRAINGING_STRATEGIES = ["Normal", "RMT", "PrefixTuningWithRMT", "PrefixPropWithRMT"]
 @dataclass
 class ModelArguments:
     """
@@ -106,13 +106,24 @@ class DataTrainingArguments:
         },
     )
     dataset_percentage: Optional[float] = field(
-        default=0.01,
+        default=1,
         metadata={
             "help": "Percentage of dataset to use, useful for quick debugging."
         },
     )
+    input_max_length: Optional[int] = field(
+        default=1024,
+        metadata={
+            "help": "Max token size of the input sequence."
+        }
+    )
+    target_max_length: Optional[int] = field(
+        default=142,
+        metadata={
+            "help": "Max token size of the label."
+        }
+    )
 
- 
 @dataclass
 class CustomTrainingArguments(TrainingArguments):
     do_hyper_search: bool = field(

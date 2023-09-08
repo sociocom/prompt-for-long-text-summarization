@@ -58,14 +58,15 @@ def main():
     cnn_dataset = load_dataset(dataset_name, "3.0.0")
     # ================================== 2.1 加载tokenizer ======================================
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    target_max_length = 142
+    target_max_length = data_args.target_max_length
+    input_max_length = data_args.input_max_length
     # ================================== 2.2 数据预处理 ======================================
     def preprocess_function(examples):
         inputs = examples[text_column]
         targets = examples[label_column]
         model_inputs = tokenizer(
             inputs, 
-            max_length=2048,
+            max_length=input_max_length,
             padding=False,
             truncation=True
         ) 
@@ -150,7 +151,9 @@ def main():
     # load pretrained model
     pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
 
-    if training_args.training_strategy == "RMT":
+    if training_args.training_strategy == 'Normal':
+        model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
+    elif training_args.training_strategy == "RMT":
         model = BartRMTForConditionalGeneration(
             config=custom_config,
             tokenizer_name_or_path=model_name_or_path,
