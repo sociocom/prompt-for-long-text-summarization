@@ -105,6 +105,9 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                 raise NotImplementedError
 
             input_segments = [seq[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
+            
+            # TODO: just a test
+            input_segments[0] = seq[:self.segment_size]
             input_segments = [self.pad_add_special_tokens(t, self.config.input_size) for t in input_segments]
             
             # add empty segment markers if needed
@@ -145,16 +148,17 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             else:
                 setattr(self, token, None)
                 
-    def extend_word_embeddings(self, num_mem_tokens, tokenizer):     
-        vocab_size = self.model.config.vocab_size
-        extended_vocab_size = vocab_size + num_mem_tokens
-        # self.num_mem_tokens = num_mem_tokens
-        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
-        self.model.resize_token_embeddings(extended_vocab_size)
+    def extend_word_embeddings(self, num_mem_tokens, tokenizer):  
+        if num_mem_tokens != 0:   
+            vocab_size = self.model.config.vocab_size
+            extended_vocab_size = vocab_size + num_mem_tokens
+            # self.num_mem_tokens = num_mem_tokens
+            self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+            self.model.resize_token_embeddings(extended_vocab_size)
 
-        special_tokens = tokenizer.special_tokens_map
-        mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
-        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+            special_tokens = tokenizer.special_tokens_map
+            mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
+            self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
         self.model.embeddings = self.model.get_input_embeddings()
         
     def set_memory(self, input_shape):
@@ -186,10 +190,6 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         if prompts is not None:
             if add_to == 'inputs':
                 input_elements += [self.cls_token, prompts, self.sep_token, tensor, self.sep_token]
-            # For Bart, only the pad token is 0 in attention_mask
-            elif add_to == 'attention_mask':
-                mask_value = torch.ones((1), device=tensor.device)
-                input_elements += [mask_value, prompt_attention_mask, mask_value, tensor, mask_value]
             # As a encoder-decoder model：is not needed to add prompt to labels
             elif add_to == 'labels':
                 # NOTE: for Seq2Seq Models labels are used for decoder_input_ids in training
@@ -198,10 +198,10 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         # For prefix-tuning/p-tuning v2
         else:
             if add_to == 'input_ids':
-                input_elements += [self.cls_token, tensor, self.sep_token]
-            elif add_to == 'attention_mask':
-                mask_value = torch.ones((1), device=tensor.device)
-                input_elements += [mask_value, tensor, mask_value]
+                if self.pre_seq_len != 0:
+                    input_elements += [self.cls_token, self.mem_token_ids, self.sep_token, tensor, self.sep_token]
+                else:
+                    input_elements += [self.cls_token, tensor, self.sep_token]
             elif add_to == 'labels':
                 input_elements += [self.eos_token, tensor, self.sep_token]
         tensor = torch.cat(input_elements)
@@ -213,8 +213,6 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         if pad_size > 0:
             if add_to == 'input_ids':
                 tensor = F.pad(tensor, (0, pad_size), value=self.pad_token_id)
-            elif add_to == 'attention_mask':
-                tensor = F.pad(tensor, (0, pad_size), value=0)
             elif add_to == 'labels':
                 # for Seq2Seq labels need to be pad by -100
                 tensor = F.pad(tensor, (0, pad_size), value=-100)
@@ -298,7 +296,11 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         )
         
         model_outputs = []
-        memory = self.set_memory(input_ids.shape)
+        if self.config.pre_seq_len != 0:
+            memory = self.set_memory(input_ids.shape)
+        else:
+            memory = None
+            
         for seg_num, segment in enumerate(zip(*segmented)):
             in_ids, l = segment
             
@@ -308,12 +310,18 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             seg_kwargs, non_empty_mask = self.prepare_kwargs(segment, kwargs)
             if sum(non_empty_mask) == 0:
                 continue
-
-            seg_kwargs['inputs_embeds'][:, self.memory_position] = memory
-            out = self.model(**seg_kwargs)
             
-            # (batch_size, sequence_length, hidden_size) 
-            memory = out.encoder_last_hidden_state[:, self.memory_position]
+            if memory is not None:
+                seg_kwargs['inputs_embeds'][:, self.memory_position][non_empty_mask] = memory[non_empty_mask]
+                # print(f'{seg_num=}, {seg_kwargs["inputs_embeds"]=}')
+                # print(f'{seg_kwargs["inputs_embeds"].shape=}')
+                out = self.model(**seg_kwargs)
+                # (batch_size, sequence_length, hidden_size) 
+                memory = out.encoder_last_hidden_state[:, self.memory_position]
+                # print(f'{seg_num=}, {out.loss=}')
+            else:
+                out = self.model(**seg_kwargs)
+                # print(f'{seg_num=}, {out.loss=}')
             model_outputs.append(out)
         
         out = self.process_outputs(model_outputs, output_attentions, output_hidden_states)
@@ -351,7 +359,7 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             'min_length': min_length,
             'max_length': max_length,
             'labels': None,
-            'attention_mask': None
+            'attention_mask': None,
         }
         
         segmented = self.pad_and_segment(
@@ -360,7 +368,11 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         
         model_outputs = []
         final_index = []
-        memory = None
+        if self.config.pre_seq_len != 0:
+            memory = self.set_memory(input_ids.shape)
+        else:
+            memory = None
+            
         for seg_num, segment in enumerate(zip(*segmented)):
             
             in_ids, l = segment
@@ -373,9 +385,23 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                 continue
             
             if memory is not None:
-                seg_kwargs['inputs_embeds'][:, :self.pre_seq_len, :] = memory            
-            out = self.model.generate(**seg_kwargs)
-                
+                seg_kwargs['inputs_embeds'][:, self.memory_position][non_empty_mask] = memory[non_empty_mask] 
+                if seg_num == len(segmented) - 1:
+                    out = self.model.generate(**seg_kwargs)
+                else:
+                    # print(f'{seg_kwargs["inputs_embeds"]} after memory=') 
+                    out = self.model.generate(**seg_kwargs) 
+                    for param in ['min_length', 'max_length', 'num_beams', 'labels']:
+                        if param in seg_kwargs:
+                            seg_kwargs.pop(param)      
+                    encoder_out = self.model.model.encoder(
+                        **seg_kwargs,
+                    )
+                    memory = encoder_out.last_hidden_state[:, self.memory_position]
+            else:
+                out = self.model.generate(**seg_kwargs)
+            
+            print('out: ', out)
             model_outputs.append(out)
 
             if not len(final_index):
@@ -386,10 +412,12 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                 for index, non_pad in enumerate(non_empty_mask):
                     if non_pad:
                         final_index[index] = seg_num
-                        
+        print(f'model_outputs: {model_outputs}')
         final_outputs = []
         for idx, _ in enumerate(non_empty_mask):
             final_outputs.append(model_outputs[(final_index[idx])][idx])
+        
+        print(f'final_outputs: {final_outputs}')
         return final_outputs    
     
     def process_outputs(self, model_outputs, output_attentions, output_hidden_states):
