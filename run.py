@@ -275,6 +275,7 @@ def main():
                     tokenizer=tokenizer,
                     accelerator=accelerator,
                     target_max_length=target_max_length,
+                    strategy=training_args.training_strategy,
                 ) 
                 summarization_metric.show_metrics()
                 # summarization_metric.show_samples()
