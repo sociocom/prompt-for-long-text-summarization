@@ -34,6 +34,7 @@ class SummarizationMetric():
                           min_length=56,
                           batch_size=16,
                           column_text="article",
+                          strategy="Normal",
                           column_summary="highlights"):
         
         with TorchTracemalloc() as tracemalloc:
@@ -50,21 +51,21 @@ class SummarizationMetric():
                         length_penalty=2.0,
                         num_beams=4,
                         max_length=target_max_length,
-                        min_length=56,
+                        min_length=min_length,
                     )
                 # 当使用分布式训练时，不同设备或节点上的模型生成的输出可能有不同的长度。
                 # 为了进行后续的评估和计算指标，我们需要将这些输出统一为相同的长度。
                 # dim=1的维度是token的维度，这里的pad_index是tokenizer的pad_token_id
                 # generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
                 # generated_tokens = generated_tokens[-1].clone().detach().to(accelerator.device)
-
-                generated_tokens = torch.stack([
-                    F.pad(
-                    t, pad=(0, target_max_length - t.size(0)), value=tokenizer.pad_token_id)
-                    for t in generated_tokens
-                    ]
-                )
-                print('generated_tokens: ', generated_tokens)
+                if strategy is not "Normal":
+                    generated_tokens = torch.stack([
+                        F.pad(
+                        t, pad=(0, target_max_length - t.size(0)), value=tokenizer.pad_token_id)
+                        for t in generated_tokens
+                        ]
+                    )
+                # print('generated_tokens: ', generated_tokens)
                 generated_tokens = accelerator.pad_across_processes(
                     generated_tokens, 
                     dim=1,
@@ -144,6 +145,14 @@ class SummarizationMetric():
             )
         )
         
+        # It seems that RougeL in paperswithcode default is RougeLsum
+        # >>> See: https://www.ogis-ri.co.jp/otc/hiroba/technical/similar-document-search/part23.html#fn5
+        # >>> Summary-level: 
+        # >>> See: https://pypi.org/project/rouge-score/
+        # >>>   Newlines in the text are interpreted as sentence boundaries, 
+        # >>>   and the LCS is computed between each pair of reference and candidate sentences, 
+        # >>>   and something called union-LCS is computed. This is called rougeLsum in this package. 
+        # >>>   This is the ROUGE-L reported in Get To The Point: Summarization with Pointer-Generator Networks, for example. If your references/candidates do not have newline delimiters, you can use the --split_summaries flag (or optional argument in RougeScorer).
         score = metric.compute()
         if isinstance(metric, type(self.rouge_metrics)):
             self.rouge_metrics = score
