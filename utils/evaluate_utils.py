@@ -58,7 +58,7 @@ class SummarizationMetric():
                 # dim=1的维度是token的维度，这里的pad_index是tokenizer的pad_token_id
                 # generated_tokens = torch.stack([s for s in generated_tokens if s is not None])
                 # generated_tokens = generated_tokens[-1].clone().detach().to(accelerator.device)
-                if strategy is not "Normal":
+                if strategy != "Normal":
                     generated_tokens = torch.stack([
                         F.pad(
                         t, pad=(0, target_max_length - t.size(0)), value=tokenizer.pad_token_id)

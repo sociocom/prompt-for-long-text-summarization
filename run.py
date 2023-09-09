@@ -48,18 +48,20 @@ def main():
     text_column = 'article'
     label_column = 'highlights'
     lr = training_args.learning_rate
-    print(f'{lr=}')
     num_epochs = int(training_args.num_train_epochs)
     train_batch_size = training_args.per_device_train_batch_size
     eval_batch_size = training_args.per_device_eval_batch_size
     data_percentage = data_args.dataset_percentage
     set_seed(training_args.seed)
+    
     # ================================== 2. 加载数据集 =======================================
     cnn_dataset = load_dataset(dataset_name, "3.0.0")
+    
     # ================================== 2.1 加载tokenizer ======================================
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
     target_max_length = data_args.target_max_length
     input_max_length = data_args.input_max_length
+    
     # ================================== 2.2 数据预处理 ======================================
     def preprocess_function(examples):
         inputs = examples[text_column]
@@ -93,6 +95,7 @@ def main():
             desc="Running tokenizer on dataset",
         )
     accelerator.wait_for_everyone()
+    
     # ================================== 2.3 数据加载器 ======================================
     # 计算需要取出的样本数量
     train_size = int(len(cnn_dataset["train"]) * data_percentage)
@@ -126,6 +129,7 @@ def main():
         batch_size=eval_batch_size,
         pin_memory=True,
     )        
+    
     # ================================== 3. 加载模型 ======================================
     if model_args.peft_config_name is not None and training_args.training_strategy == "PrefixTuningWithRMT":
         peft_config = PrefixTuningConfig.from_pretrained(model_args.peft_config_name)
@@ -190,6 +194,7 @@ def main():
     accelerator.print(model)
     if training_args.training_strategy == "PrefixTuningWithRMT":
         model.model.print_trainable_parameters()
+    
     # ================================== 可以省略 ======================================
     # 如果不设置 deepspeed 参数，则 Accelerator 默认使用 PyTorch 的原生分布式训练机制
     """
@@ -284,13 +289,26 @@ def main():
     accelerator.wait_for_everyone()
     # TODO: use trainer to save model
     #     : this method just save prefix modele at last epoch
-    model.model.push_to_hub(
-        "kaifanli/"
-        + f"prefix-tuning_rmt_bart_cnn-dm",
-        state_dict=accelerator.get_state_dict(model),
-        use_auth_token=True,
-    )
-    accelerator.wait_for_everyone()        
+    if training_args.training_strategy == "Normal":
+        model.save_pretrained(training_args.output_dir)
+        model.push_to_hub(
+            "kaifanli/"
+            + training_args.training_strategy
+            + model_args.model_name_or_path.split("/")[-1],
+            state_dict=accelerator.get_state_dict(model),
+            use_auth_token=True,
+        )
+    else:
+        accelerator.wait_for_everyone() 
+        model.model.save_pretrained(training_args.output_dir)
+        model.model.push_to_hub(
+            "kaifanli/"
+            + training_args.training_strategy
+            + model_args.model_name_or_path.split("/")[-1],
+            state_dict=accelerator.get_state_dict(model),
+            use_auth_token=True,
+        )
+        accelerator.wait_for_everyone()        
     
 if __name__ == "__main__":
     main()
