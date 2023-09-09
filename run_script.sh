@@ -20,7 +20,7 @@ export WANDB_MODE=online
 export LINEAGE=PromptRMT # This is just a tag on wandb to make tracking runs easier
 export WANDB_PROJECT_NAME="<ORG>/<PROJECT_NAME>" # IMPORTANT: set this to your own wandb project
 
-export MODEL_NAME=facebook/bart-large-cnn
+export MODEL_NAME=ainize/bart-base-cnn
 export DATASET_NAME=cnn_dailymail
 checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/ 
 
