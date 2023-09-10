@@ -269,3 +269,5 @@ nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
 5. 如何删除已经被git追踪的文件：git rm -r --cached "filename"
 6. using prefix-tuning in BART
 > https://blog.csdn.net/weixin_42953627/article/details/125586001
+
+7. 无法正确学习, 很可能是因为label的切片策略出了问题。

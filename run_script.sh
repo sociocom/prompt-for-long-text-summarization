@@ -20,7 +20,7 @@ export WANDB_MODE=online
 export LINEAGE=PromptRMT # This is just a tag on wandb to make tracking runs easier
 export WANDB_PROJECT_NAME="<ORG>/<PROJECT_NAME>" # IMPORTANT: set this to your own wandb project
 
-export MODEL_NAME=ainize/bart-base-cnn
+export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=cnn_dailymail
 checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/ 
 
@@ -32,17 +32,17 @@ nohup python3 run.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
---do_train false \
+--do_train true \
 --do_eval false \
 --do_predict true \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 1 \
---num_train_epochs 1 \
---dataset_percentage 1 \
---pre_seq_len 0 \
+--num_train_epochs 5 \
+--dataset_percentage 0.1 \
+--pre_seq_len 16 \
 --target_max_length 142 \
 --input_max_length 1024 \
---training_strategy "Normal" \
+--training_strategy "RMT" \
 --learning_rate 5e-3 \
 "$@" > $log_filename 2>&1 &
