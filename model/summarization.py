@@ -60,7 +60,10 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         
         if 'sep_token' in self.tokenizer.special_tokens_map:
             self.segment_size -= 1      
-            
+        
+        for name, param in self.model.named_parameters():
+                param.requires_grad = False
+               
     def pad_and_segment(self, input_ids, labels=None):
 
         segmented_batch = []
@@ -107,24 +110,31 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             input_segments = [seq[start:end] for (start, end) in zip(split_inds, split_inds[1:])]
             
             # TODO: just a test
-            input_segments[0] = seq[:self.segment_size]
+            input_segments[-1] = seq[-self.segment_size:]
             input_segments = [self.pad_add_special_tokens(t, self.config.input_size) for t in input_segments]
             
             # add empty segment markers if needed
             n_empty_segments = self.config.max_n_segments - len(input_segments)
             # input_segments:
-            input_segments = input_segments + [self.get_full_padding_segment()] * n_empty_segments
+            input_segments = input_segments + [self.get_full_padding_segment(add_to='input_ids')] * n_empty_segments
             
             # segmented_batch: 
             segmented_batch.append(input_segments)
 
             if label is not None:
-                # full_segment_size = len(input_segments)
-                end_index = math.ceil(len(label) // (full_segment_size := len(input_segments)))
+                # TODO : do test
+                full_segment_size = len(input_segments) - n_empty_segments
+                end_index = math.ceil(len(label) // full_segment_size)
                 labels_segments = [label[:(end_index*(i+1))] for i in range(full_segment_size)]
                 labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
-                labels_segments = labels_segments + [self.get_full_padding_segment()] * n_empty_segments
+                labels_segments = labels_segments + [self.get_full_padding_segment(add_to='label')] * n_empty_segments
                 segmented_batch_labels.append(labels_segments)
+                
+                # full_segment_size = len(input_segments) - n_empty_segments
+                # labels_segments = [label[:] for i in range(full_segment_size)]
+                # labels_segments = [self.pad_add_special_tokens(t, self.config.input_size, add_to='labels') for t in labels_segments]
+                # labels_segments = labels_segments + [self.get_full_padding_segment()] * n_empty_segments
+                # segmented_batch_labels.append(labels_segments)
                 
         segmented_batch = [[sample[seg_num] for sample in segmented_batch] 
                             for seg_num in range(self.config.max_n_segments)]
@@ -133,8 +143,11 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                                   for seg_num in range(self.config.max_n_segments)]
         return segmented_batch, segmented_batch_labels
         
-    def get_full_padding_segment(self,):
-        padding_segment = torch.tensor([self.pad_token_id for _ in range(self.config.input_size)])
+    def get_full_padding_segment(self, add_to):
+        if add_to == 'input_ids':
+            padding_segment = torch.tensor([self.pad_token_id for _ in range(self.config.input_size)])
+        elif add_to == 'label':
+            padding_segment = torch.tensor([-100 for _ in range(self.config.input_size)])
         return padding_segment
     
     def extract_special_tokens(self, tokenizer):
@@ -159,7 +172,12 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             special_tokens = tokenizer.special_tokens_map
             mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
             self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+            
+            # TODO : just test
+            # for param in self.model.lm_head.parameters():
+            #     param.requires_grad = False
         self.model.embeddings = self.model.get_input_embeddings()
+        self.model.embeddings.weight.requires_grad = True
         
     def set_memory(self, input_shape):
         memory = self.model.embeddings(self.mem_token_ids)
@@ -203,9 +221,15 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                 else:
                     input_elements += [self.cls_token, tensor, self.sep_token]
             elif add_to == 'labels':
+                # NOTE: just test
+                # pad_value = -100
+                # masked_labels = torch.ones((1), device=tensor.device, dtype=tensor.dtype) * pad_value
+                # input_elements += [masked_labels, masked_labels.repeat(self.pre_seq_len), self.eos_token, tensor, masked_labels]
+                # input_elements += [masked_labels, masked_labels.repeat(self.pre_seq_len), masked_labels, tensor, masked_labels]
                 input_elements += [self.eos_token, tensor, self.sep_token]
+                
         tensor = torch.cat(input_elements)
-        
+        # print(f'{tensor[:11]=}')
         # Add padding tokens
         # TODO: implement summary module
         #       now config.sum_token_size default = 0
@@ -238,6 +262,7 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         seg_kwargs['attention_mask'] = self.get_attention_mask(input_ids)
         
         if seg_kwargs['labels'] is not None:
+            segment_label = [tensor.to(self.model.device) if tensor is not None else None for tensor in segment_label]
             seg_kwargs['labels'] = torch.stack([l for l in segment_label if l is not None])
         
         return seg_kwargs, non_empty_mask   
@@ -248,7 +273,7 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         return mask
     
     def is_padding(self, tensor):
-        return tensor[0] == self.pad_token_id     
+        return tensor[0] == self.pad_token_id
     
     def forward(
         self,
@@ -287,7 +312,12 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             'output_hidden_states': output_hidden_states, 
             'return_dict': return_dict,
         }
+        # for name, param in self.model.named_parameters():
+        #     if param.requires_grad:
+        #         print('requires_grad = True')
+        #         print(f'{name}: {param.shape}')
 
+        # print(f'{self.model.embeddings=}')
         # segmented: [max_n_segments, batch_size, segment_size]
         # !!! Note: the batch_size is not the same as the input batch_size
         segmented = self.pad_and_segment(
@@ -300,10 +330,10 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             memory = self.set_memory(input_ids.shape)
         else:
             memory = None
-            
+        # print(f'{self.model.embeddings.weight=}')
         for seg_num, segment in enumerate(zip(*segmented)):
             in_ids, l = segment
-            
+            # print(f'{seg_num=}, {memory=}')
             if self.config.bptt_depth != -1:
                 raise NotImplementedError
             
@@ -322,6 +352,8 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             else:
                 out = self.model(**seg_kwargs)
                 # print(f'{seg_num=}, {out.loss=}')
+            # print(f'{seg_num}')
+            # print(f'{out.loss.shape=}, {out.loss=}')
             model_outputs.append(out)
         
         out = self.process_outputs(model_outputs, output_attentions, output_hidden_states)
@@ -372,9 +404,9 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             memory = self.set_memory(input_ids.shape)
         else:
             memory = None
-            
+
         for seg_num, segment in enumerate(zip(*segmented)):
-            
+            # print(f'{seg_num=}, {memory=}')
             in_ids, l = segment
             
             if self.config.bptt_depth != -1:
@@ -393,7 +425,8 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                     out = self.model.generate(**seg_kwargs) 
                     for param in ['min_length', 'max_length', 'num_beams', 'labels']:
                         if param in seg_kwargs:
-                            seg_kwargs.pop(param)      
+                            seg_kwargs.pop(param)
+                    # print(f"{seg_num=} {seg_kwargs['inputs_embeds'][:,self.memory_position]=}")      
                     encoder_out = self.model.model.encoder(
                         **seg_kwargs,
                     )
@@ -401,7 +434,7 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
             else:
                 out = self.model.generate(**seg_kwargs)
             
-            print('out: ', out)
+            # print('out: ', out)
             model_outputs.append(out)
 
             if not len(final_index):
@@ -412,12 +445,12 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
                 for index, non_pad in enumerate(non_empty_mask):
                     if non_pad:
                         final_index[index] = seg_num
-        print(f'model_outputs: {model_outputs}')
+        # print(f'model_outputs: {model_outputs}')
         final_outputs = []
         for idx, _ in enumerate(non_empty_mask):
             final_outputs.append(model_outputs[(final_index[idx])][idx])
         
-        print(f'final_outputs: {final_outputs}')
+        # print(f'final_outputs: {final_outputs}')
         return final_outputs    
     
     def process_outputs(self, model_outputs, output_attentions, output_hidden_states):
