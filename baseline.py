@@ -158,7 +158,8 @@ class SummarizationMetric():
                 decoded_preds, decoded_labels = self.postprocess_text(
                     decoded_preds, decoded_labels
                 )
-                
+                print(f'{decoded_preds=}')
+                print(f'{decoded_labels=}')
                 metric.add_batch(predictions=decoded_preds, references=decoded_labels)
             
                 # # 解码pred成自然语言文本
@@ -279,9 +280,9 @@ def main():
     
     # ================================== 2.3 数据加载器 ======================================
     # 计算需要取出的样本数量
-    train_size = int(len(cnn_dataset["train"]) * 0.1)
-    eval_size = int(len(cnn_dataset["validation"]) * 0.1)
-    test_size = int(len(cnn_dataset["test"]) * 0.1)
+    train_size = int(len(cnn_dataset["train"]) * 0.001)
+    eval_size = int(len(cnn_dataset["validation"]) * 0.001)
+    test_size = int(len(cnn_dataset["test"]) * 0.001)
 
     # 从打乱后的数据集中随机抽取指定数量的数据
     train_dataset = cnn_dataset["train"].shuffle(seed=42).select(range(train_size))
@@ -408,7 +409,7 @@ def main():
         
         # ================================== 5. 评估测试集 ======================================
         # TODO: 测试初始的rouge值
-        if (epoch+1) % 5 == 0:
+        if (epoch+1) % 1 == 0:
             model.eval()
             rouge_metric = evaluate.load("rouge")
             summarization_metric = SummarizationMetric()
