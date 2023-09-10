@@ -19,14 +19,14 @@ from transformers import BartConfig
 # TODO：need to rewrite __str__ method
 class PromptBartConfig(BartConfig):
     def __init__(self,
-                 pre_seq_len=20,
+                 pre_seq_len=16,
                  input_size=512,
                  max_n_segments=4,
                  bptt_depth=-1,
                  prefix_projection=False, 
                  propagate_prefix=True,
                  hidden_dropout_prob=0.1,
-                 segment_alignment='right',
+                 segment_alignment='left',
                  sum_token_size=0,
                  label_max_size=256,
                  sum_loss=True,
