@@ -91,12 +91,13 @@ class SummarizationMetric():
                 decoded_labels = tokenizer.batch_decode(
                     labels, skip_special_tokens=True
                 )
-                
+                print('decoded_preds: ', decoded_preds)
+                print('decoded_labels: ', decoded_labels)
                 decoded_preds, decoded_labels = self.postprocess_text(
                     decoded_preds, decoded_labels
                 )
-                print('decoded_preds: ', decoded_preds)
-                print('decoded_labels: ', decoded_labels)
+                # print('decoded_preds: ', decoded_preds)
+                # print('decoded_labels: ', decoded_labels)
                 metric.add_batch(predictions=decoded_preds, references=decoded_labels)
             
                 # # 解码pred成自然语言文本
