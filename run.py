@@ -152,8 +152,6 @@ def main():
         **bart_config.to_dict()
     )
     print(custom_config)
-    # load pretrained model
-    pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
 
     if training_args.training_strategy == 'Normal':
         model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
@@ -162,6 +160,7 @@ def main():
             config=custom_config,
             tokenizer_name_or_path=model_name_or_path,
         )
+        pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
         model.model.load_state_dict(pretrained_model.state_dict())
         model.extend_word_embeddings(custom_config.pre_seq_len, tokenizer)
     elif training_args.training_strategy == "PrefixTuningWithRMT":
@@ -169,6 +168,7 @@ def main():
             config=custom_config,
             tokenizer_name_or_path=model_name_or_path,
         )
+        pretrained_model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
         model.model.load_state_dict(pretrained_model.state_dict())
         model.model = get_peft_model(
             model.model,
