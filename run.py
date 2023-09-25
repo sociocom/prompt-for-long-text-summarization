@@ -219,13 +219,15 @@ def main():
                 model.train()
                 total_loss = 0
                 for step, batch in enumerate(tqdm(train_dataloader)):
+                    print(f'{model.model.model.encoder.layers[0].self_attn.k_proj.weight=}')    
                     outputs = model(**batch)
                     loss = outputs.loss
                     total_loss += loss.detach().float()
                     accelerator.backward(loss) 
                     optimizer.step()
                     lr_scheduler.step()
-                    optimizer.zero_grad()    
+                    optimizer.zero_grad()
+                    # print(f'{model.model.model.encoder.layers[0].self_attn.k_proj.weight=}')    
                     
             # ================================== 可以省略: 计算存储消耗 ======================================     
             # Printing the GPU memory usage details such as allocated memory, peak memory, and total memory usage

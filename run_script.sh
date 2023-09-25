@@ -24,8 +24,10 @@ export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=cnn_dailymail
 checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/ 
 
-batch_size=8
-eval_batch_size=8
+CUDA_VISIBLE_DEVICES=2
+
+batch_size=2
+eval_batch_size=2
 
 # 执行命令并将输出重定向到日志文件
 nohup python3 run.py \
