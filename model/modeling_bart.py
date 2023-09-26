@@ -43,7 +43,8 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers import BartConfig
-
+from model.prefix_encoder import PrefixEncoder
+from config import PromptBartConfig
 
 logger = logging.get_logger(__name__)
 
@@ -1950,3 +1951,141 @@ class BartForCausalLM(BartPreTrainedModel):
         for layer_past in past_key_values:
             reordered_past += (tuple(past_state.index_select(0, beam_idx) for past_state in layer_past),)
         return reordered_past
+    
+class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
+    base_model_prefix = "model"
+    _tied_weights_keys = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight", "lm_head.weight"]
+    _keys_to_ignore_on_load_missing = ["final_logits_bias"]
+    
+    def __init__(self, config: PromptBartConfig):
+        super().__init__(config)
+        self.model = BartModel(config)
+        self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
+        self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
+
+        for name, param in self.model.named_parameters():
+            param.requires_grad = False
+
+        self.pre_seq_len = config.pre_seq_len
+        self.n_layer = config.num_hidden_layers
+        self.n_head = config.num_attention_heads
+        self.n_embd = config.hidden_size // config.num_attention_heads
+        self.prefix_tokens = torch.arange(self.pre_seq_len).long()
+        
+        self.propagate_prefix = self.config.propagate_prefix
+        
+        self.prefix_encoder = None
+        self.propagated_prefix_encoder = None
+        
+        if self.propagate_prefix in ["none", "combine"]:
+            self.prefix_encoder = PrefixEncoder(config, propagate_prefix=False)
+        if self.propagate_prefix in ["only", "combine"]:
+            self.propagated_prefix_encoder = PrefixEncoder(config, propagate_prefix=True)        
+        
+        self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+        
+    def get_prompt(self, batch_size):
+        prefix_tokens = (
+            self.prefix_tokens.unsqueeze(0)
+            .expand(batch_size, -1)
+            .to(self.longformer.device)
+        )
+        
+        prefix_past_key_values = self.prefix_encoder(prefix_tokens) if self.prefix_encoder else None
+        propagated_prefix_past_key_values = self.propagated_prefix_encoder(prefix_tokens) if self.propagated_prefix_encoder else None
+
+        # Number of matricies to use (k and v if no propagation, embeddings only if propacation)
+        if prefix_past_key_values is not None:
+            # Prefix only
+            prefix_past_key_values = prefix_past_key_values.view(
+                batch_size, self.pre_seq_len, self.n_layer * 2, self.n_head, self.n_embd
+            )
+            prefix_past_key_values = self.dropout(prefix_past_key_values)
+            # n_layer, batch_size, n_head, total_prefix_len, hidden_size
+            prefix_past_key_values = prefix_past_key_values.permute([2, 0, 3, 1, 4]).split(2)
+        
+        if propagated_past_key_values is not None:
+            # Propagated prefix only
+            propagated_past_key_values = propagated_past_key_values.view(
+                batch_size, self.pre_seq_len, self.n_layer*(2 if self.config.propagate_prefix_scalar else 1), self.config.hidden_size
+            )
+            propagated_past_key_values = self.dropout(propagated_past_key_values)
+            # n_layer, batch_size, total_prefix_len, hidden_size
+            propagated_past_key_values = propagated_past_key_values.permute([2, 0, 1, 3])
+
+            if self.config.propagate_prefix_scalar:
+                propagated_past_key_values = propagated_past_key_values.split(2)
+            else:
+                propagated_past_key_values = propagated_past_key_values.unsqueeze(1)
+
+        return (prefix_past_key_values, propagated_past_key_values)        
+    
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.LongTensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        decoder_head_mask: Optional[torch.Tensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, Seq2SeqLMOutput]:
+        r"""
+        labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+            Labels for computing the masked language modeling loss. Indices should either be in `[0, ...,
+            config.vocab_size]` or -100 (see `input_ids` docstring). Tokens with indices set to `-100` are ignored
+            (masked), the loss is only computed for the tokens with labels in `[0, ..., config.vocab_size]`.
+
+        Returns:
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if labels is not None:
+            if use_cache:
+                logger.warning("The `use_cache` argument is changed to `False` since `labels` is provided.")
+            use_cache = False
+            if decoder_input_ids is None and decoder_inputs_embeds is None:
+                decoder_input_ids = shift_tokens_right(
+                    labels, self.config.pad_token_id, self.config.decoder_start_token_id
+                )
+                
+        batch_size = input_ids.shape[0]        
+        
+        (prefix_past_key_values, propagated_past_key_values) = self.get_prompt(batch_size=batch_size)
+        if prefix_past_key_values is not None:
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+        if propagated_past_key_values is not None:
+            propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+            attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
+            
+        output = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            encoder_outputs=encoder_outputs,
+            decoder_attention_mask=decoder_attention_mask,
+            head_mask=head_mask,
+            decoder_head_mask=decoder_head_mask,
+            cross_attn_head_mask=cross_attn_head_mask,
+            past_key_values=prefix_past_key_values,
+            inputs_embeds=inputs_embeds,
+            decoder_inputs_embeds=decoder_inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            propagated_prefix=propagated_past_key_values,
+        )

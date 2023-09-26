@@ -9,7 +9,8 @@ import math
 from typing import List, Optional, Tuple, Union, Iterable
 
 from transformers import (
-    PreTrainedModel,
+    BartModel,
+    BartPreTrainedModel,
     BartForConditionalGeneration,
     BartTokenizer,
 )
@@ -41,11 +42,18 @@ def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int, decoder_start
 # ============================================
 # =============== BART model =================
 # ============================================
-class BartRMTForConditionalGeneration(PreTrainedModel):
+class BartRMTForConditionalGeneration(BartPreTrainedModel):
+    # base_model_prefix = "model"
+    # _tied_weights_keys = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight", "lm_head.weight"]
+    # _keys_to_ignore_on_load_missing = ["final_logits_bias"]
     config_class = PromptBartConfig
+    
     def __init__(self, config, **kwargs):
         super().__init__(config)
         self.model = BartForConditionalGeneration(config)
+        # self.model = BartModel(config)
+        # self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
+        # self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
         self.tokenizer = BartTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         
         self.config = config
@@ -61,9 +69,13 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         if 'sep_token' in self.tokenizer.special_tokens_map:
             self.segment_size -= 1      
         
-        for name, param in self.model.named_parameters():
-                param.requires_grad = False
-               
+        # for name, param in self.model.named_parameters():
+        #         param.requires_grad = False
+        
+        # Initialize weights and apply final processing
+        # 这里不会重写from_pretrained的参数, 这里保证了有些非pretrained的参数被随机初始化
+        self.post_init()
+        
     def pad_and_segment(self, input_ids, labels=None):
 
         segmented_batch = []
@@ -484,11 +496,14 @@ class BartRMTForConditionalGeneration(PreTrainedModel):
         return rmt_out 
     
 # prefix-tuning/p-tuning v2 version
-class BartPrefixForConditionalGeneration(PreTrainedModel):
+class BartPrefixForConditionalGeneration(BartPreTrainedModel):
     config_class = PromptBartConfig
     def __init__(self, config, **kwargs):
         super().__init__(config)
         self.model = BartForConditionalGeneration(config)
+        self.model = BartModel(config)
+        self.registerbuffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
+        self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
         self.tokenizer = BartTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         
         self.config = config
@@ -910,11 +925,16 @@ class BartPrefixForConditionalGeneration(PreTrainedModel):
         return out
     
 # prefix-propagation version
-class BartPrefixPropForConditionalGeneration(PreTrainedModel):
+class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
+    # base_model_prefix = "model"
+    # _tied_weights_keys = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight", "lm_head.weight"]
+    # _keys_to_ignore_on_load_missing = ["final_logits_bias"]
     config_class = PromptBartConfig
+    
     def __init__(self, config, **kwargs):
         super().__init__(config)
         self.model = BartForConditionalGeneration(config)
+        
         self.tokenizer = BartTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         
         self.config = config
@@ -951,7 +971,11 @@ class BartPrefixPropForConditionalGeneration(PreTrainedModel):
         
         print("Total parameters: {:,}".format(all_param))
         print("Trainable parameters: {:,} {:,%}".format((trainable_param), trainable_param/all_param))
-    
+
+        # Initialize weights and apply final processing
+        # 这里不会重写from_pretrained的参数, 这里保证了有些非pretrained的参数被随机初始化
+        self.post_init()
+        
     def get_prompt(self, batch_size, memory=None):
         if memory is not None:
             prompts = self.prefix_encoder(memory)

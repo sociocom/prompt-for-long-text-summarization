@@ -24,12 +24,13 @@ class PromptBartConfig(BartConfig):
                  max_n_segments=4,
                  bptt_depth=-1,
                  prefix_projection=False, 
-                 propagate_prefix=True,
+                 propagate_prefix='only',
                  hidden_dropout_prob=0.1,
                  segment_alignment='left',
                  sum_token_size=0,
                  label_max_size=256,
                  sum_loss=True,
+                 propagate_prefix_scalar=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
@@ -43,6 +44,8 @@ class PromptBartConfig(BartConfig):
         self.sum_token_size = sum_token_size # the size of summary tokens
         self.label_max_size = label_max_size # the max size of labels
         self.sum_loss = sum_loss # whether to use summary loss
+        self.propagate_prefix = propagate_prefix
+        self.propagate_prefix_scalar = propagate_prefix_scalar
         
 # Another method to custom BartConfig
 # existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
