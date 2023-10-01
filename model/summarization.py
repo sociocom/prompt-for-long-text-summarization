@@ -69,8 +69,8 @@ class BartRMTForConditionalGeneration(BartPreTrainedModel):
         if 'sep_token' in self.tokenizer.special_tokens_map:
             self.segment_size -= 1      
         
-        # for name, param in self.model.named_parameters():
-        #         param.requires_grad = False
+        for name, param in self.model.named_parameters():
+                param.requires_grad = False
         
         # Initialize weights and apply final processing
         # 这里不会重写from_pretrained的参数, 这里保证了有些非pretrained的参数被随机初始化

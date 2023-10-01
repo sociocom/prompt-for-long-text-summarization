@@ -50,6 +50,8 @@ class SummarizationMetric():
                         # sysnced_gpus=is_ds_zero3,
                         length_penalty=2.0,
                         num_beams=4,
+                        # no_repeat_ngram_size=2, 
+                        early_stopping=True,
                         max_length=target_max_length,
                         min_length=min_length,
                     )

@@ -40,7 +40,7 @@ nohup python3 run.py \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 1 \
---num_train_epochs 10 \
+--num_train_epochs 2 \
 --dataset_percentage 0.001 \
 --pre_seq_len 16 \
 --target_max_length 256 \
