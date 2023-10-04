@@ -1986,7 +1986,33 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
-        
+    
+    def get_encoder(self):
+        return self.model.encoder
+    
+    def get_decoder(self):
+        return self.model.decoder
+    
+    def resize_token_embeddings(self, new_num_tokens: int, pad_to_multiple_of: Optional[int] = None) -> nn.Embedding:
+        new_embeddings = super().resize_token_embeddings(new_num_tokens, pad_to_multiple_of)
+        self._resize_final_logits_bias(new_embeddings.weight.shape[0])
+        return new_embeddings
+    
+    def _resize_final_logits_bias(self, new_num_tokens: int) -> None:
+        old_num_tokens = self.final_logits_bias.shape[-1]
+        if new_num_tokens <= old_num_tokens:
+            new_bias = self.final_logits_bias[:, :new_num_tokens]
+        else:
+            extra_bias = torch.zeros((1, new_num_tokens - old_num_tokens), device=self.final_logits_bias.device)
+            new_bias = torch.cat([self.final_logits_bias, extra_bias], dim=1)
+        self.register_buffer("final_logits_bias", new_bias)
+
+    def get_output_embeddings(self):
+        return self.lm_head
+
+    def set_output_embeddings(self, new_embeddings):
+        self.lm_head = new_embeddings
+
     def get_prompt(self, batch_size):
         prefix_tokens = (
             self.prefix_tokens.unsqueeze(0)
@@ -2022,7 +2048,10 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 propagated_past_key_values = propagated_past_key_values.unsqueeze(1)
 
         return (prefix_past_key_values, propagated_past_key_values)        
-    
+
+    @add_start_docstrings_to_model_forward(BART_INPUTS_DOCSTRING)
+    @replace_return_docstrings(output_type=Seq2SeqLMOutput, config_class=_CONFIG_FOR_DOC)
+    @add_end_docstrings(BART_GENERATION_EXAMPLE)    
     def forward(
         self,
         input_ids: torch.LongTensor = None,
@@ -2070,8 +2099,9 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         if propagated_past_key_values is not None:
             propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
             attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
-            
-        output = self.model(
+        
+        # 拼接input_ids和prefix_tokens的部分在模型内部完成 
+        outputs = self.model(
             input_ids,
             attention_mask=attention_mask,
             decoder_input_ids=decoder_input_ids,
@@ -2089,3 +2119,48 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
             return_dict=return_dict,
             propagated_prefix=propagated_past_key_values,
         )
+        
+        lm_logits = self.lm_head(outputs[0])
+
+    def prepare_inputs_for_generation(
+        self,
+        decoder_input_ids,
+        past_key_values=None,
+        attention_mask=None,
+        decoder_attention_mask=None,
+        head_mask=None,
+        decoder_head_mask=None,
+        cross_attn_head_mask=None,
+        use_cache=None,
+        encoder_outputs=None,
+        **kwargs,
+    ):
+        # cut decoder_input_ids if past_key_values is used
+        if past_key_values is not None:
+            decoder_input_ids = decoder_input_ids[:, -1:]
+
+        return {
+            "input_ids": None,  # encoder_outputs is defined. input_ids not needed
+            "encoder_outputs": encoder_outputs,
+            "past_key_values": past_key_values,
+            "decoder_input_ids": decoder_input_ids,
+            "attention_mask": attention_mask,
+            "decoder_attention_mask": decoder_attention_mask,
+            "head_mask": head_mask,
+            "decoder_head_mask": decoder_head_mask,
+            "cross_attn_head_mask": cross_attn_head_mask,
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+        }
+
+    def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):
+        return shift_tokens_right(labels, self.config.pad_token_id, self.config.decoder_start_token_id)
+
+    @staticmethod
+    def _reorder_cache(past_key_values, beam_idx):
+        reordered_past = ()
+        for layer_past in past_key_values:
+            # cached cross_attention states don't have to be reordered -> they are always the same
+            reordered_past += (
+                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
+            )
+        return reordered_past        
