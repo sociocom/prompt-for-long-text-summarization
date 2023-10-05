@@ -43,15 +43,13 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers import BartConfig
-# from transformers.configuration_utils import GenerationConfig
-# from transformers.StoppingCriteria import StoppingCriteriaList
-# from transformers.streamer import BaseStreamer
 from transformers import (
-     AutoTokenizer,
-     AutoModelForSeq2SeqLM,
      LogitsProcessorList,
-     MinLengthLogitsProcessor,     
+     MinLengthLogitsProcessor,
+     ForcedEOSTokenLogitsProcessor,     
      BeamSearchScorer,
+     StoppingCriteriaList,
+     MaxLengthCriteria
     )
 
 from model.prefix_encoder import PrefixEncoder
@@ -2237,8 +2235,8 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         self,
         encoder_input_ids: Optional[torch.Tensor] = None,
         # generation_config: Optional[GenerationConfig] = None,
-        # logits_processor: Optional[LogitsProcessorList] = None,
-        # stopping_criteria: Optional[StoppingCriteriaList] = None,
+        logits_processor: Optional[LogitsProcessorList] = None,
+        stopping_criteria: Optional[StoppingCriteriaList] = None,
         # prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
         # synced_gpus: Optional[bool] = None,
         # assistant_model: Optional["PreTrainedModel"] = None,
@@ -2285,25 +2283,34 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         beam_scorer = BeamSearchScorer(
             batch_size=batch_size,
             num_beams=num_beams,
+            length_penalty=length_penalty,
             device=self.model.device,
+            do_early_stopping=early_stopping,
         )
         
         # instantiate logits processors
         logits_processor = LogitsProcessorList(
             [
-                # TODO: how to contral max_length????????????
-                # MaxLengthLogitsProcessor(max_length=max_length, eos_token_id=self.config.eos_token_id),
+                # control min length of generation
                 MinLengthLogitsProcessor(min_length=min_length, eos_token_id=self.config.eos_token_id),
             ]
         )
-        
-        # TODO: Control the length of the generation
-        # TODO: do early stopping
+
+        if stopping_criteria is not None:
+            stopping_criteria = stopping_criteria
+        else:
+            stopping_criteria = StoppingCriteriaList(
+                [
+                     # control max length of generation
+                    MaxLengthCriteria(max_length=max_length),
+                ]
+            )    
         
         return self.beam_search(
             input_ids,
             beam_scorer,
             logits_processor=logits_processor,
+            stopping_criteria=stopping_criteria,
             max_length=max_length,
             **model_kwargs,
         )
