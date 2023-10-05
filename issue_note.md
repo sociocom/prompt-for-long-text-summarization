@@ -81,62 +81,6 @@ from network import send_msg
     ```
 
 ### 三：模型加载方法
-```python
-from transformers import BertConfig, BertModel
-
-# from_pretrained -> transformers.modeling_utils
-# def from_pretrained(
-#     cls,
-#     pretrained_model_name_or_path: Optional[Union[str, os.PathLike]],
-#     *model_args,
-#     config: Optional[Union[PretrainedConfig, str, os.PathLike]] = None,
-#     cache_dir: Optional[Union[str, os.PathLike]] = None,
-#     ignore_mismatched_sizes: bool = False,
-#     force_download: bool = False,
-#     local_files_only: bool = False,
-#     token: Optional[Union[str, bool]] = None,
-#     revision: str = "main",
-#     use_safetensors: bool = None,
-#     **kwargs,
-# ):
-
-# 1. Download model and configuration from huggingface.co and cache.
-model = BertModel.from_pretrained("bert-base-uncased")
-
-# 2. Model was saved using *save_pretrained('./test/saved_model/')* (for example purposes, not runnable).
-model = BertModel.from_pretrained("./test/saved_model/")
-
-# 3. Update configuration during loading.
-model = BertModel.from_pretrained("bert-base-uncased", output_attentions=True)
-assert model.config.output_attentions == True
-
-# 4. Loading from a TF checkpoint file instead of a PyTorch model (slower, for example purposes, not runnable).
-config = BertConfig.from_json_file("./tf_model/my_tf_model_config.json")
-model = BertModel.from_pretrained("./tf_model/my_tf_checkpoint.ckpt.index", from_tf=True, config=config)
-
-# 5. Loading from a Flax checkpoint file instead of a PyTorch model (slower)
-model = BertModel.from_pretrained("bert-base-uncased", from_flax=True)
-
-# 6. Custom model config
-from transformers import BartConfig, BartForConditionalGeneration
-
-# 现有的 BartConfig 对象
-existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
-
-# 自定义参数作为 kwargs
-custom_kwargs = {
-    "my_custom_parameter": "abc",
-}
-
-# 创建新的配置对象并传递自定义参数
-new_config = BartConfig(**existing_config.to_dict(), **custom_kwargs)
-
-# 输出新配置对象的属性
-print(new_config.test)
-model = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn', config=new_config)
-model, model.config
-```
-
 #### .from_pretrained()方法
 > 不会覆盖预训练参数！！！
 1. 找到正确的基础模型类进行初始化
@@ -252,9 +196,12 @@ custom_config = CustomBartConfig(
 2. 必须要接收kwargs参数
 3. 需要把kwargs参数传递给super类的__init__参数
 
-## Model Architecture
+## 五: Model Architecture
 ### 一：Auto Regressive & Teacher Forcing
 > 引发了exposure bias： [Bridging the Gap between Training and Inference for Neural Machine Translation](https://aclanthology.org/P19-1426/)
+### 二：Custom Generate
+> https://huggingface.co/docs/transformers/v4.34.0/en/internal/generation_utils#utilities-for-generation
+
 
 ## Debug记录
 1. decoder_input_ids出现out of index: decoder_input_ids必须以eos开头
