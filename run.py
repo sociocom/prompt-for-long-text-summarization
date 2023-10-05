@@ -33,6 +33,7 @@ from model import (
     BartPrefixForConditionalGeneration, 
     BartPrefixPropForConditionalGeneration
 )
+from model.modeling_bart import BartPrefixPropForConditionalGeneration
 from config import PromptBartConfig
 from utils import evaluate_utils, trace_malloc
 
@@ -59,9 +60,13 @@ def main():
     
     # ================================== 2.1 加载tokenizer ======================================
     tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    target_max_length = data_args.target_max_length
-    input_max_length = data_args.input_max_length
-    
+    if training_args.training_strategy == "Normal":
+        input_max_length = 1024 - model_args.pre_seq_len
+        target_max_length = 128
+    else:
+        target_max_length = data_args.target_max_length
+        input_max_length = data_args.input_max_length
+        
     # ================================== 2.2 数据预处理 ======================================
     def preprocess_function(examples):
         inputs = examples[text_column]
@@ -137,7 +142,7 @@ def main():
         peft_config = PrefixTuningConfig(
             task_type=TaskType.SEQ_2_SEQ_LM,
             inference_mode=False,
-            num_virtual_tokens=20,
+            num_virtual_tokens=model_args.pre_seq_len,
         )
         
     # load pretrained checkpoint
@@ -154,7 +159,8 @@ def main():
     print(custom_config)
 
     if training_args.training_strategy == 'Normal':
-        model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
+        # model = BartForConditionalGeneration.from_pretrained(model_name_or_path)
+        model = BartPrefixPropForConditionalGeneration.from_pretrained(model_name_or_path, config=custom_config)
     elif training_args.training_strategy == "RMT":
         model = BartRMTForConditionalGeneration(
             config=custom_config,
@@ -219,7 +225,7 @@ def main():
                 model.train()
                 total_loss = 0
                 for step, batch in enumerate(tqdm(train_dataloader)):
-                    print(f'{model.model.model.encoder.layers[0].self_attn.k_proj.weight=}')    
+                    # print(f'{model.model.model.encoder.layers[0].self_attn.k_proj.weight=}')    
                     outputs = model(**batch)
                     loss = outputs.loss
                     total_loss += loss.detach().float()
