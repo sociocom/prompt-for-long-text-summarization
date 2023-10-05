@@ -26,8 +26,8 @@ checkpoint_dir=saved/$DATASET_NAME/$WANDB_NAME/
 
 CUDA_VISIBLE_DEVICES=2
 
-batch_size=2
-eval_batch_size=2
+batch_size=1
+eval_batch_size=1
 
 # 执行命令并将输出重定向到日志文件
 nohup python3 run.py \
@@ -40,11 +40,11 @@ nohup python3 run.py \
 --per_device_train_batch_size $batch_size \
 --per_device_eval_batch_size $eval_batch_size \
 --predict_epoch 1 \
---num_train_epochs 2 \
+--num_train_epochs 5 \
 --dataset_percentage 0.001 \
 --pre_seq_len 16 \
 --target_max_length 256 \
 --input_max_length 2048 \
---training_strategy "RMT" \
+--training_strategy "Normal" \
 --learning_rate 5e-3 \
 "$@" > $log_filename 2>&1 &
