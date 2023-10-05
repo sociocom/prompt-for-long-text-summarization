@@ -43,10 +43,11 @@ class SummarizationMetric():
                 labels = batch["labels"]
                 # 对于peft的模型直接收**batch的形式
                 # 不能单独传batch和attention_mask
-                batch = {k: v for k, v in batch.items() if k != "labels"}
+                batch = {k: v for k, v in batch.items() if k != "labels" and k != "attention_mask"}
+
                 with torch.no_grad():
                     generated_tokens = accelerator.unwrap_model(model).generate(
-                        **batch,
+                        batch["input_ids"],
                         # sysnced_gpus=is_ds_zero3,
                         length_penalty=2.0,
                         num_beams=4,
@@ -67,7 +68,7 @@ class SummarizationMetric():
                         for t in generated_tokens
                         ]
                     )
-                # print('generated_tokens: ', generated_tokens)
+
                 generated_tokens = accelerator.pad_across_processes(
                     generated_tokens, 
                     dim=1,
