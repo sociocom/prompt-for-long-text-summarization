@@ -43,14 +43,15 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers import BartConfig
-from transformers.configuration_utils import GenerationConfig
-from transformers.stopping_criteria import StoppingCriteriaList
-from transformers.streamer import BaseStreamer
+# from transformers.configuration_utils import GenerationConfig
+# from transformers.StoppingCriteria import StoppingCriteriaList
+# from transformers.streamer import BaseStreamer
 from transformers import (
      AutoTokenizer,
      AutoModelForSeq2SeqLM,
      LogitsProcessorList,
-     MinLengthLogitsProcessor,     BeamSearchScorer,
+     MinLengthLogitsProcessor,     
+     BeamSearchScorer,
     )
 
 from model.prefix_encoder import PrefixEncoder
@@ -825,7 +826,7 @@ class BartEncoder(BartPreTrainedModel):
         # batch_size, seq_len, hidden_size
         if propagated_prefix is not None:
             layer0_prefix_embeds = propagated_prefix[0].squeeze(0)
-            print('layer0_prefix_embeds', layer0_prefix_embeds.shape)
+            
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
         elif input_ids is not None:
@@ -2128,8 +2129,8 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )      
-        print(f'in the forward {propagated_prefix=}')
-        if propagated_prefix is None:
+                
+        if propagated_prefix is None and input_ids is not None:
             batch_size = input_ids.shape[0]
             (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
 
@@ -2139,6 +2140,9 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
             if propagated_prefix_past_key_values is not None:
                 propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
                 attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
+        else:
+            prefix_past_key_values = None
+            propagated_prefix_past_key_values = None
             
         # 拼接input_ids和prefix_tokens的部分在模型内部完成 
         outputs = self.model(
@@ -2150,7 +2154,7 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
             head_mask=head_mask,
             decoder_head_mask=decoder_head_mask,
             cross_attn_head_mask=cross_attn_head_mask,
-            past_key_values=prefix_past_key_values,
+            past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
             decoder_inputs_embeds=decoder_inputs_embeds,
             use_cache=use_cache,
@@ -2159,7 +2163,7 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
             return_dict=return_dict,
             propagated_prefix=propagated_prefix_past_key_values,
         )
-        
+
         lm_logits = self.lm_head(outputs[0])
         lm_logits = lm_logits + self.final_logits_bias.to(lm_logits.device)
         
@@ -2231,42 +2235,76 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
     @torch.no_grad()
     def generate(
         self,
-        inputs: Optional[torch.Tensor] = None,
-        generation_config: Optional[GenerationConfig] = None,
-        logits_processor: Optional[LogitsProcessorList] = None,
-        stopping_criteria: Optional[StoppingCriteriaList] = None,
-        prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
-        synced_gpus: Optional[bool] = None,
-        assistant_model: Optional["PreTrainedModel"] = None,
-        streamer: Optional["BaseStreamer"] = None,
-        negative_prompt_ids: Optional[torch.Tensor] = None,
-        negative_prompt_attention_mask: Optional[torch.Tensor] = None,
+        encoder_input_ids: Optional[torch.Tensor] = None,
+        # generation_config: Optional[GenerationConfig] = None,
+        # logits_processor: Optional[LogitsProcessorList] = None,
+        # stopping_criteria: Optional[StoppingCriteriaList] = None,
+        # prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+        # synced_gpus: Optional[bool] = None,
+        # assistant_model: Optional["PreTrainedModel"] = None,
+        # streamer: Optional["BaseStreamer"] = None,
+        # negative_prompt_ids: Optional[torch.Tensor] = None,
+        # negative_prompt_attention_mask: Optional[torch.Tensor] = None,
+        length_penalty: Optional[float] = None,
+        early_stopping: Optional[bool] = None,
         max_length: Optional[int] = None,
         min_length: Optional[int] = None,
         num_beams: Optional[int] = None,
         **kwargs,
     ) -> torch.LongTensor:
-        
-        batch_size = inputs.shape[0]        
+
+        batch_size = encoder_input_ids.shape[0]        
             
         (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
         
-        if prefix_past_key_values is not None:
-            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
-        if propagated_prefix_past_key_values is not None:
-            propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-            attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
-            
-        kwargs["propagated_prefix"] = propagated_prefix_past_key_values
-        self.beam_search()
-        return self.generate(
-            input_ids=input,
-            attention_mask=attention_mask,
-            max_length=max_length,
-            min_length=min_length,
-            length_penalty=2.0,
-            num_beams=4,
-            propagated_prefix=propagated_prefix_past_key_values,
-            **kwargs,
+        # if prefix_past_key_values is not None:
+        #     prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+        #     attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+        # if propagated_prefix_past_key_values is not None:
+        #     propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+        #     attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
+        
+        # define decoder start token ids
+        input_ids = torch.ones((num_beams * batch_size, 1), device=self.model.device, dtype=torch.long)
+        input_ids = input_ids * self.model.config.decoder_start_token_id
+        
+        encoder_input_ids = encoder_input_ids.repeat_interleave(num_beams, dim=0)
+        propagated_prefix_past_key_values = propagated_prefix_past_key_values.repeat_interleave(num_beams, dim=2)
+
+        # get encoder output
+        encoder = self.get_encoder()
+        model_kwargs = {
+            "encoder_outputs": encoder(
+                input_ids=encoder_input_ids,
+                return_dict=True,
+                propagated_prefix=propagated_prefix_past_key_values,
+            )
+        }
+        
+        # instantiate beam scorer
+        beam_scorer = BeamSearchScorer(
+            batch_size=batch_size,
+            num_beams=num_beams,
+            device=self.model.device,
         )
+        
+        # instantiate logits processors
+        logits_processor = LogitsProcessorList(
+            [
+                # TODO: how to contral max_length????????????
+                # MaxLengthLogitsProcessor(max_length=max_length, eos_token_id=self.config.eos_token_id),
+                MinLengthLogitsProcessor(min_length=min_length, eos_token_id=self.config.eos_token_id),
+            ]
+        )
+        
+        # TODO: Control the length of the generation
+        # TODO: do early stopping
+        
+        return self.beam_search(
+            input_ids,
+            beam_scorer,
+            logits_processor=logits_processor,
+            max_length=max_length,
+            **model_kwargs,
+        )
+        
