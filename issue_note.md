@@ -220,3 +220,10 @@ nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
 7. 无法正确学习, 很可能是因为label的切片策略出了问题。
 8. 在generate里不需要手动传入attention_mask
 9. 对一个encoder-decoder模型, generate方法会首先调用encoder, 然后会调用model.forward()注意此时encoder已经被pass了
+
+## TODO List
+1. 控制片段之间的 bptt_depth
+2. 给每个片段增加一个segment-level position embedding
+3. 控制记忆单元
+4. 利用prefix-propagation的思路, 在第一段seg生成一个n-layer的prefix tokens(直接插入到hidden里的), 然后第二段开始是直接取第一段的每一层的hidden状态，放入到模型。
+5. 测试一下LLaMa2和其他模型的表现, 不是RMT结构也可以
