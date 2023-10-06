@@ -2,7 +2,7 @@ import evaluate
 import nltk
 nltk.download("punkt")
 from nltk.tokenize import sent_tokenize
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import torch.nn.functional as F
 from .trace_malloc import * 
 
@@ -38,7 +38,7 @@ class SummarizationMetric():
                           column_summary="highlights"):
         
         with TorchTracemalloc() as tracemalloc:
-            for step, batch in enumerate(tqdm(dataloader)):
+            for step, batch in enumerate(tqdm(dataloader, disable=not accelerator.is_local_main_process)):
                 print('----------{}----------'.format(step))
                 labels = batch["labels"]
                 # 对于peft的模型直接收**batch的形式
@@ -164,8 +164,8 @@ class SummarizationMetric():
             self.bleu_metrics = score
         return score
 
-    def show_metrics(self):
-        print(self.rouge_metrics)
+    def show_metrics(self, accelerator):
+        accelerator.print(self.rouge_metrics)
         # print(self.bleu_metrics)
         
     # def show_samples(self):
