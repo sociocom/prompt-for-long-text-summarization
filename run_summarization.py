@@ -234,6 +234,7 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
+    # NOTE: it seems that a bug exsits when using trainer with prefix tuning
     elif training_args.training_strategy == "BaseModelWithPrefixTuning":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
@@ -244,14 +245,13 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
-        if model_args.peft_config_name == "prefix-tuning":
-            peft_config = PrefixTuningConfig(
-                task_type=TaskType.SEQ_2_SEQ_LM,
-                inference_mode=False,
-                num_virtual_tokens=model_args.pre_seq_len,            
-            )
-        else:
-            raise NotImplementedError
+
+        peft_config = PrefixTuningConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            inference_mode=False,
+            num_virtual_tokens=model_args.pre_seq_len,            
+        )
+
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
     elif training_args.training_strategy == "BaseModelWithRMT":
@@ -292,7 +292,7 @@ def main():
             
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")    
-    
+        
     # Only resize position embedding for baseline models
     # We have implemented memory mechanism for long documents, so don't need to resize
     if training_args.training_strategy == "BaseModel":
