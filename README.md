@@ -4,21 +4,26 @@
 project/
 |-- config/
 |   |-- config.py
-|-- data/
+|-- datasets/
 |-- logs/
 |-- models/
 |   |-- base.py                   -> RMT base model
-|   |-- conditional_generation.py -> RMT cond_gen task
-|   |-- token_classification.py   -> RMT token_cls task
+|   |-- modeling_bart             -> custom bart model (PrefixProp) 
 |   |-- prefix_encoder            -> for prompt generation
-|   |-- summarization             -> summarization task
 |-- utils/
-|-- baseline.py
-|-- main.py
+|-- script/                       -> task specific run script
+|-- run_summarization.py          -> training
 |-- ...
-|-- requirements.txt
+|-- requirements.txt              -> training_args
 ```
 
-> our code is in model/summarization.py
+
+## Result Table 
+| Model | pre_seq_len| post_seq_len| Model fixed | rouge1 | rouge2 | rougeL | batch_size | train_sample | eval_sample | pred_sample |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Bart-base | 0 | 0 | None | 31.97 | 12.91 | 21.51 |
+| Bart-base Prefix-tuning | 20 | 0 | Fixed | 
+| Bart-base Prefix-Prop | 20 | 0 | Fixed | 30.47 | 13.09 | 27.73 |
+| Bart-base Prefix-Prop | 20 | 0 | None | 32.17 | 13.50 | 29.24 |
 
 
