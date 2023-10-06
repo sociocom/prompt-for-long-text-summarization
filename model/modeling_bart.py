@@ -2108,6 +2108,7 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         propagated_prefix: Optional[List[torch.FloatTensor]] = None,
+        propagated_postfix: Optional[List[torch.FloatTensor]] = None,
     ) -> Union[Tuple, Seq2SeqLMOutput]:
         r"""
         labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
@@ -2127,11 +2128,13 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )      
-                
+        
+        # prefix memory cell  
         if propagated_prefix is None and input_ids is not None:
             batch_size = input_ids.shape[0]
+            self.batch_size = batch_size
             (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
-
+            # print(type(propagated_prefix_past_key_values))
             if prefix_past_key_values is not None:
                 prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
                 attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
@@ -2141,7 +2144,13 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         else:
             prefix_past_key_values = None
             propagated_prefix_past_key_values = None
-            
+        
+        # postfix summary cell
+        # postfix summary cell will just past generated tokens instead of all layer hidden states
+        # TODO: 可能需要把每一个摘要片段padding到一个长度：似乎模型已经做了这个操作
+        if propagated_postfix is None and input_ids is not None:
+            pass 
+        
         # 拼接input_ids和prefix_tokens的部分在模型内部完成 
         outputs = self.model(
             input_ids,
@@ -2230,88 +2239,88 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
             )
         return reordered_past        
     
-    @torch.no_grad()
-    def generate(
-        self,
-        encoder_input_ids: Optional[torch.Tensor] = None,
-        # generation_config: Optional[GenerationConfig] = None,
-        logits_processor: Optional[LogitsProcessorList] = None,
-        stopping_criteria: Optional[StoppingCriteriaList] = None,
-        # prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
-        # synced_gpus: Optional[bool] = None,
-        # assistant_model: Optional["PreTrainedModel"] = None,
-        # streamer: Optional["BaseStreamer"] = None,
-        # negative_prompt_ids: Optional[torch.Tensor] = None,
-        # negative_prompt_attention_mask: Optional[torch.Tensor] = None,
-        length_penalty: Optional[float] = None,
-        early_stopping: Optional[bool] = None,
-        max_length: Optional[int] = None,
-        min_length: Optional[int] = None,
-        num_beams: Optional[int] = None,
-        **kwargs,
-    ) -> torch.LongTensor:
+    # @torch.no_grad()
+    # def generate(
+    #     self,
+    #     inputs: Optional[torch.Tensor] = None,
+    #     # generation_config: Optional[GenerationConfig] = None,
+    #     logits_processor: Optional[LogitsProcessorList] = None,
+    #     stopping_criteria: Optional[StoppingCriteriaList] = None,
+    #     # prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+    #     # synced_gpus: Optional[bool] = None,
+    #     # assistant_model: Optional["PreTrainedModel"] = None,
+    #     # streamer: Optional["BaseStreamer"] = None,
+    #     # negative_prompt_ids: Optional[torch.Tensor] = None,
+    #     # negative_prompt_attention_mask: Optional[torch.Tensor] = None,
+    #     length_penalty: Optional[float] = None,
+    #     early_stopping: Optional[bool] = None,
+    #     max_length: Optional[int] = None,
+    #     min_length: Optional[int] = None,
+    #     num_beams: Optional[int] = None,
+    #     **kwargs,
+    # ) -> torch.LongTensor:
 
-        batch_size = encoder_input_ids.shape[0]        
+        # batch_size = encoder_input_ids.shape[0]        
             
-        (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
+        # (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
         
-        # if prefix_past_key_values is not None:
-        #     prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-        #     attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
-        # if propagated_prefix_past_key_values is not None:
-        #     propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-        #     attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
+        # # if prefix_past_key_values is not None:
+        # #     prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+        # #     attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+        # # if propagated_prefix_past_key_values is not None:
+        # #     propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+        # #     attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
         
-        # define decoder start token ids
-        input_ids = torch.ones((num_beams * batch_size, 1), device=self.model.device, dtype=torch.long)
-        input_ids = input_ids * self.model.config.decoder_start_token_id
+        # # define decoder start token ids
+        # input_ids = torch.ones((num_beams * batch_size, 1), device=self.model.device, dtype=torch.long)
+        # input_ids = input_ids * self.model.config.decoder_start_token_id
         
-        encoder_input_ids = encoder_input_ids.repeat_interleave(num_beams, dim=0)
-        propagated_prefix_past_key_values = propagated_prefix_past_key_values.repeat_interleave(num_beams, dim=2)
+        # encoder_input_ids = encoder_input_ids.repeat_interleave(num_beams, dim=0)
+        # propagated_prefix_past_key_values = propagated_prefix_past_key_values.repeat_interleave(num_beams, dim=2)
 
-        # get encoder output
-        encoder = self.get_encoder()
-        model_kwargs = {
-            "encoder_outputs": encoder(
-                input_ids=encoder_input_ids,
-                return_dict=True,
-                propagated_prefix=propagated_prefix_past_key_values,
-            )
-        }
+        # # get encoder output
+        # encoder = self.get_encoder()
+        # model_kwargs = {
+        #     "encoder_outputs": encoder(
+        #         input_ids=encoder_input_ids,
+        #         return_dict=True,
+        #         propagated_prefix=propagated_prefix_past_key_values,
+        #     )
+        # }
         
-        # instantiate beam scorer
-        beam_scorer = BeamSearchScorer(
-            batch_size=batch_size,
-            num_beams=num_beams,
-            length_penalty=length_penalty,
-            device=self.model.device,
-            do_early_stopping=early_stopping,
-        )
+        # # instantiate beam scorer
+        # beam_scorer = BeamSearchScorer(
+        #     batch_size=batch_size,
+        #     num_beams=num_beams,
+        #     length_penalty=length_penalty,
+        #     device=self.model.device,
+        #     do_early_stopping=early_stopping,
+        # )
         
-        # instantiate logits processors
-        logits_processor = LogitsProcessorList(
-            [
-                # control min length of generation
-                MinLengthLogitsProcessor(min_length=min_length, eos_token_id=self.config.eos_token_id),
-            ]
-        )
+        # # instantiate logits processors
+        # logits_processor = LogitsProcessorList(
+        #     [
+        #         # control min length of generation
+        #         MinLengthLogitsProcessor(min_length=min_length, eos_token_id=self.config.eos_token_id),
+        #     ]
+        # )
 
-        if stopping_criteria is not None:
-            stopping_criteria = stopping_criteria
-        else:
-            stopping_criteria = StoppingCriteriaList(
-                [
-                     # control max length of generation
-                    MaxLengthCriteria(max_length=max_length),
-                ]
-            )    
+        # if stopping_criteria is not None:
+        #     stopping_criteria = stopping_criteria
+        # else:
+        #     stopping_criteria = StoppingCriteriaList(
+        #         [
+        #              # control max length of generation
+        #             MaxLengthCriteria(max_length=max_length),
+        #         ]
+        #     )    
         
-        return self.beam_search(
-            input_ids,
-            beam_scorer,
-            logits_processor=logits_processor,
-            stopping_criteria=stopping_criteria,
-            max_length=max_length,
-            **model_kwargs,
-        )
+        # return self.beam_search(
+        #     input_ids,
+        #     beam_scorer,
+        #     logits_processor=logits_processor,
+        #     stopping_criteria=stopping_criteria,
+        #     max_length=max_length,
+        #     **model_kwargs,
+        # )
         
