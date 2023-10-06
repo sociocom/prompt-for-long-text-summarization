@@ -234,7 +234,7 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
-    elif training_args.train_strategy == "BaseModelWithPrefixTuning":
+    elif training_args.training_strategy == "BaseModelWithPrefixTuning":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -254,10 +254,11 @@ def main():
             raise NotImplementedError
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
-    elif training_args.train_strategy == "BaseModelWithRMT":
+    elif training_args.training_strategy == "BaseModelWithRMT":
         # TODO:
         raise NotImplementedError                  
-    elif training_args.train_strategy == "BaseModelWithPrefixProp":
+    elif training_args.training_strategy == "BaseModelWithPrefixProp":
+        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
         prompt_bart_config = PromptBartConfig(
             pre_seq_len=model_args.pre_seq_len,
             **config.to_dict()
@@ -271,7 +272,7 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )
-    elif training_args.train_strategy == "BaseModelWithRMTAndPrefixProp":
+    elif training_args.training_strategy == "BaseModelWithRMTAndPrefixProp":
         raise NotImplementedError
     else:
         raise NotImplementedError
