@@ -1,10 +1,36 @@
-from transformers import HfArgumentParser, TrainingArguments
+from transformers import HfArgumentParser, TrainingArguments, Seq2SeqTrainingArguments
 
 from typing import Optional, Literal
 from dataclasses import dataclass, field
 
-DATASETS = ["cnn_dailymail", "xsum", "NYT"]
-TRAINGING_STRATEGIES = ["Normal", "RMT", "PrefixTuningWithRMT", "PrefixPropWithRMT"]
+TRAINGING_STRATEGIES = [
+    "BaseModel", 
+    "BaseModelWithPrefixTuning", 
+    
+    "BaseModelWithRMT",
+    "BaseModelWithPrefixProp",
+    "BaseModelWithRMTAndPrefixProp",
+]
+
+summarization_name_mapping = {
+    "amazon_reviews_multi": ("review_body", "review_title"),
+    "big_patent": ("description", "abstract"),
+    "cnn_dailymail": ("article", "highlights"),
+    "orange_sum": ("text", "summary"),
+    "pn_summary": ("article", "summary"),
+    "psc": ("extract_text", "summary_text"),
+    "samsum": ("dialogue", "summary"),
+    "thaisum": ("body", "summary"),
+    "xglue": ("news_body", "news_title"),
+    "xsum": ("document", "summary"),
+    "wiki_summary": ("article", "highlights"),
+    "multi_news": ("document", "summary"),
+    # TODO:
+    # Add PubMed
+    # Add arXiv
+    # Add BookSum
+}
+
 @dataclass
 class ModelArguments:
     """
@@ -21,11 +47,11 @@ class ModelArguments:
             "help": "Pretrained config name or path if not the same as model_name"
         },
     )
+    tokenizer_name: Optional[str] = field(
+        default=None, metadata={"help": "Pretrained tokenizer name or path if not the same as model_name"}
+    )
     peft_config_name: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Pretrained peft_config name or path"
-        },
+        default=None, metadata={"help": "Pretrained peft_config name or path"},
     )
     cache_dir: Optional[str] = field(
         default=None,
@@ -33,12 +59,56 @@ class ModelArguments:
             "help": "Where do you want to store the pretrained models downloaded from huggingface.co"
         },
     )
+    model_revision: str = field(
+        default="main",
+        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
+    )
     use_fast_tokenizer: bool = field(
         default=True,
         metadata={
             "help": "Whether to use one of the fast tokenizer (backed by the tokenizers library) or not."
         },
     )
+    model_revision: str = field(
+        default="main",
+        metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
+    )
+    token: str = field(
+        default=None,
+        metadata={
+            "help": (
+                "The token to use as HTTP bearer authorization for remote files. If not specified, will use the token "
+                "generated when running `huggingface-cli login` (stored in `~/.huggingface`)."
+            )
+        },
+    )    
+    use_auth_token: bool = field(
+        default=None,
+        metadata={
+            "help": "The `use_auth_token` argument is deprecated and will be removed in v4.34. Please use `token`."
+        },
+    )
+    trust_remote_code: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether or not to allow for custom models defined on the Hub in their own modeling files. This option"
+                "should only be set to `True` for repositories you trust and in which you have read the code, as it will"
+                "execute code present on the Hub on your local machine."
+            )
+        },
+    )        
+    resize_position_embeddings: Optional[bool] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Whether to automatically resize the position embeddings if `max_source_length` exceeds "
+                "the model's position embeddings."
+            )
+        },
+    )
+    
+    # For PrefixTuning & RMT
     prefix: bool = field(
         default=False, 
         metadata={"help": "Will use P-tuning v2 during training"}
@@ -65,75 +135,192 @@ class ModelArguments:
         default=20, 
         metadata={"help": "The length of prompt"}
     )
+    post_seq_len: int = field(
+        default=128,
+        metadata={"help": "The length of the summary cell"}
+    )
     prefix_projection: bool = field(
         default=False,
         metadata={"help": "Apply a two-layer MLP head over the prefix embeddings"},
     )
-    # prefix_hidden_size: int = field(
-    #     default=512,
-    #     metadata={
-    #         "help": "The hidden size of the MLP projection head in Prefix Encoder if prefix projection is used"
-    #     },
-    # )
 
 @dataclass
 class DataTrainingArguments:
     """
     Arguments pertaining to what data we are going to input our model for training and eval.
-
-    Using `HfArgumentParser` we can turn this class
-    into argparse arguments to be able to specify them on
-    the command line.training_args
     """
     
+    lang: Optional[str] = field(default=None, metadata={"help": "Language id for summarization."})
+    
     dataset_name: str = field(
-        metadata={
-            'help': "The name of the dataset to use: " + ", ".join(DATASETS),
-            "choices": DATASETS,
-        }
+        default=None, metadata={"help": "The name of the dataset to use (via the datasets library)."}
     )
     dataset_config_name: Optional[str] = field(
+        default=None, metadata={"help": "The configuration name of the dataset to use (via the datasets library)."}
+    )
+    
+    text_column: Optional[str] = field(
+        default=None,
+        metadata={"help": "The name of the column in the datasets containing the full texts (for summarization)."},
+    )
+    summary_column: Optional[str] = field(
+        default=None,
+        metadata={"help": "The name of the column in the datasets containing the summaries (for summarization)."},
+    )
+    
+    # If you want to use your own dataset, you can pass the path to it here
+    train_file: Optional[str] = field(
+        default=None, metadata={"help": "The input training data file (a jsonlines or csv file)."}
+    )
+    validation_file: Optional[str] = field(
         default=None,
         metadata={
-            "help": "The configuration name of the dataset to use (via the datasets library)."
+            "help": (
+                "An optional input evaluation data file to evaluate the metrics (rouge) on (a jsonlines or csv file)."
+            )
         },
     )
-    early_stopping_patience: Optional[int] = field(
-        default=-1,
+    test_file: Optional[str] = field(
+        default=None,
         metadata={
-            "help": "If default or less than 0, no early stopping."
-            "Metric to monitor defaults to first in eval dictionary"
+            "help": "An optional input test data file to evaluate the metrics (rouge) on (a jsonlines or csv file)."
         },
     )
-    dataset_percentage: Optional[float] = field(
-        default=1,
-        metadata={
-            "help": "Percentage of dataset to use, useful for quick debugging."
-        },
+    
+    overwrite_cache: bool = field(
+        default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
-    input_max_length: Optional[int] = field(
+    preprocessing_num_workers: Optional[int] = field(
+        default=None,
+        metadata={"help": "The number of processes to use for the preprocessing."},
+    )
+    
+    max_source_length: Optional[int] = field(
         default=1024,
         metadata={
-            "help": "Max token size of the input sequence."
-        }
+            "help": (
+                "The maximum total input sequence length after tokenization. Sequences longer "
+                "than this will be truncated, sequences shorter will be padded."
+            )
+        },
     )
-    target_max_length: Optional[int] = field(
-        default=142,
+    max_target_length: Optional[int] = field(
+        default=128,
         metadata={
-            "help": "Max token size of the label."
-        }
+            "help": (
+                "The maximum total sequence length for target text after tokenization. Sequences longer "
+                "than this will be truncated, sequences shorter will be padded."
+            )
+        },
+    )
+    val_max_target_length: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "The maximum total sequence length for validation target text after tokenization. Sequences longer "
+                "than this will be truncated, sequences shorter will be padded. Will default to `max_target_length`."
+                "This argument is also used to override the ``max_length`` param of ``model.generate``, which is used "
+                "during ``evaluate`` and ``predict``."
+            )
+        },
+    )
+    pad_to_max_length: bool = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to pad all samples to model maximum sentence length. "
+                "If False, will pad the samples dynamically when batching to the maximum length in the batch. More "
+                "efficient on GPU but very bad for TPU."
+            )
+        },
+    )    
+    max_train_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of training examples to this "
+                "value if set."
+            )
+        },
+    )
+    max_eval_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of evaluation examples to this "
+                "value if set."
+            )
+        },
+    )
+    max_predict_samples: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "For debugging purposes or quicker training, truncate the number of prediction examples to this "
+                "value if set."
+            )
+        },
+    )   
+    num_beams: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Number of beams to use for evaluation. This argument will be passed to ``model.generate``, "
+                "which is used during ``evaluate`` and ``predict``."
+            )
+        },
+    )
+    ignore_pad_token_for_loss: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether to ignore the tokens corresponding to padded labels in the loss computation or not."
+        },
+    )
+    source_prefix: Optional[str] = field(
+        default="", metadata={"help": "A prefix to add before every source text (useful for T5 models)."}
     )
 
+    forced_bos_token: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "The token to force as the first generated token after the decoder_start_token_id."
+                "Useful for multilingual models like mBART where the first generated token"
+                "needs to be the target language token (Usually it is the target language token)"
+            )
+        },
+    )
+                 
+    def __post_init__(self):
+        if (
+            self.dataset_name is None
+            and self.train_file is None
+            and self.validation_file is None
+            and self.test_file is None
+        ):
+            raise ValueError("Need either a dataset name or a training, validation, or test file.")
+        else:
+            if self.train_file is not None:
+                extension = self.train_file.split(".")[-1]
+                assert extension in ["csv", "json"], "`train_file` should be a csv or a json file."
+            if self.validation_file is not None:
+                extension = self.validation_file.split(".")[-1]
+                assert extension in ["csv", "json"], "`validation_file` should be a csv or a json file."
+            if self.test_file is not None:
+                extension = self.test_file.split(".")[-1]
+                assert extension in ["csv", "json"], "`test_file` should be a csv or a json file."
+        if self.val_max_target_length is None:
+            self.val_max_target_length = self.max_target_length
 @dataclass
-class CustomTrainingArguments(TrainingArguments):
+class CustomTrainingArguments(Seq2SeqTrainingArguments):
     do_hyper_search: bool = field(
         default=False, metadata={"help": "Run a hyperparameter search"}
     )
     predict_epoch: int = field(
-        default=5, metadata={"help": "Ever how many epochs to run a predict"}
+        default=5, metadata={"help": "Ever n epochs to run a predict"}
     )
     training_strategy: str = field(
-        default="RMT",
+        default="Normal",
         metadata={
             "help": "The training strategy to use",
             "choices": TRAINGING_STRATEGIES,
