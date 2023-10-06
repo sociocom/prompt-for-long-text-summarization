@@ -20,6 +20,7 @@ from transformers import BartConfig
 class PromptBartConfig(BartConfig):
     def __init__(self,
                  pre_seq_len=16,
+                 post_seq_len=128,
                  input_size=512,
                  max_n_segments=4,
                  bptt_depth=-1,
@@ -34,6 +35,7 @@ class PromptBartConfig(BartConfig):
                  **kwargs):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
+        self.post_seq_len = post_seq_len
         self.input_size = input_size
         self.max_n_segments = max_n_segments
         self.bptt_depth = bptt_depth
