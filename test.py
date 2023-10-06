@@ -50,10 +50,8 @@ from transformers import (
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, is_offline_mode, send_example_telemetry
 from transformers.utils.versions import require_version
-from peft import get_peft_config, get_peft_model, get_peft_model_state_dict, PrefixTuningConfig, TaskType
-from arguments import get_args
-from model.modeling_bart import BartPrefixPropForConditionalGeneration
-from config import PromptBartConfig
+from peft import PrefixTuningConfig, TaskType, get_peft_model
+
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.35.0.dev0")
 
@@ -462,29 +460,18 @@ def main():
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
+
+    # NOTE：
+    peft_config = PrefixTuningConfig(
+        task_type=TaskType.SEQ_2_SEQ_LM,
+        inference_mode=False,
+        num_virtual_tokens=20,
+    )
     
-    # data_args.max_source_length = data_args.max_source_length - 20
-    # prompt_bart_config = PromptBartConfig(
-    #     pre_seq_len=20,
-    #     **config.to_dict()
-    # )
-    # model = BartPrefixPropForConditionalGeneration.from_pretrained(
-    #     model_args.model_name_or_path,
-    #     from_tf=bool(".ckpt" in model_args.model_name_or_path),
-    #     config=prompt_bart_config,
-    #     cache_dir=model_args.cache_dir,
-    #     revision=model_args.model_revision,
-    #     token=model_args.token,
-    #     trust_remote_code=model_args.trust_remote_code,
-    # )    
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
     print(model)
-    # peft_config = PrefixTuningConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, num_virtual_tokens=20)
-
-    # model = AutoModelForSeq2SeqLM.from_pretrained(model_args.model_name_or_path)
-    # model = get_peft_model(model, peft_config)
-    # model.print_trainable_parameters()
-    # print(model)
-
+    
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
     embedding_size = model.get_input_embeddings().weight.shape[0]
