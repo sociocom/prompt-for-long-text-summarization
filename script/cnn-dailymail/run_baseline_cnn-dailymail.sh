@@ -35,8 +35,8 @@ nohup python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 1 \
---per_device_eval_batch_size 1 \
+--per_device_train_batch_size 4 \
+--per_device_eval_batch_size 4 \
 --num_train_epochs 5 \
 --max_train_samples 10000 \
 --max_eval_samples 1000 \
