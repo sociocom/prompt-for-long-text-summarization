@@ -38,6 +38,7 @@ nohup python3 run_summarization.py \
 --do_predict false \
 --per_device_train_batch_size 4 \
 --per_device_eval_batch_size 4 \
+--learning_rate 3e-3 \
 --num_train_epochs 1 \
 --max_train_samples 100 \
 --max_eval_samples 50 \
@@ -47,7 +48,6 @@ nohup python3 run_summarization.py \
 --pre_seq_len 20 \
 --post_seq_len 0 \
 --generation_num_beams 4 \
---peft_config_name "prefix-tuning" \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
 --save_strategy epoch \
