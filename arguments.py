@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 TRAINGING_STRATEGIES = [
     "BaseModel", 
     "BaseModelWithPrefixTuning", 
+    "BaseModelWithPrefixProp",
     
     "BaseModelWithRMT",
-    "BaseModelWithPrefixProp",
     "BaseModelWithRMTAndPrefixProp",
 ]
 
