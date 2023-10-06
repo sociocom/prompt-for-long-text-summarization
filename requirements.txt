@@ -5,13 +5,10 @@ transformers[torch]
 seqeval
 gpytorch
 evaluate
+nltk
 
 # required for hyper search
 optuna
 sigopt
 wandb
 ray[tune] 
-
-# required for evaluation
-rouge_score
-sacrebleu
