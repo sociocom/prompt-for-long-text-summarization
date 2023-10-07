@@ -33,7 +33,7 @@ nohup python3 run_summarization.py \
 --dataset_config_name "3.0.0" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
---do_train true \
+--do_train false \
 --do_eval true \
 --do_predict false \
 --per_device_train_batch_size 1 \
@@ -45,7 +45,7 @@ nohup python3 run_summarization.py \
 --max_source_length 1024 \
 --max_target_length 128 \
 --pre_seq_len 20 \
---post_seq_len 0 \
+--post_seq_len 128 \
 --generation_num_beams 4 \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
