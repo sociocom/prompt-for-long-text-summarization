@@ -826,6 +826,7 @@ class BartEncoder(BartPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+        print('BartEncoder.forward()')
         # retrieve input_ids and inputs_embeds
         # batch_size, seq_len, hidden_size
         if propagated_prefix is not None:
@@ -1330,6 +1331,7 @@ class BartModel(BartPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
 
+        print('BartModel.forward()')
         # print(encoder_outputs)
         if propagated_prefix is not None:
             print('propagated_prefix is not None in bart_model')
@@ -2164,6 +2166,7 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )      
 
+        print('BartPrefixPropForConditionalGeneration.forward()')
         # prefix memory cell  
         # generate() will call encoder() first and give encoder_outputs then
         # so in that case, input_ids is None
