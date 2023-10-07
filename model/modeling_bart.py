@@ -826,14 +826,11 @@ class BartEncoder(BartPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        
-        print(f'{attention_mask.device=}')
         # retrieve input_ids and inputs_embeds
         # batch_size, seq_len, hidden_size
         if propagated_prefix is not None:
             layer0_prefix_embeds = propagated_prefix[0].squeeze(0)
             batch_size = input_ids.shape[0]
-            print(attention_mask.device)
             prefix_attention_mask = torch.ones(batch_size, self.config.pre_seq_len).to(attention_mask.device)
             attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
             
