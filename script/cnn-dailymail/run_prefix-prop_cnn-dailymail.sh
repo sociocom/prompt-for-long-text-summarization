@@ -33,9 +33,9 @@ nohup python3 run_summarization.py \
 --dataset_config_name "3.0.0" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
---do_train true \
---do_eval true \
---do_predict false \
+--do_train false \
+--do_eval false \
+--do_predict true \
 --per_device_train_batch_size 1 \
 --per_device_eval_batch_size 1 \
 --num_train_epochs 1 \
