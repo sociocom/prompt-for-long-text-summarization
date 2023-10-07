@@ -1331,7 +1331,18 @@ class BartModel(BartPreTrainedModel):
                 hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
-
+            
+        if propagated_prefix is not None:
+            batch_size = encoder_outputs.last_hidden_state.shape[0]
+            print(attention_mask.device)
+            prefix_attention_mask = torch.ones(batch_size, self.config.pre_seq_len).to(attention_mask.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            
+        if propagated_postfix is not None:
+            batch_size = encoder_outputs.last_hidden_state.shape[0]
+            postfix_attention_mask = torch.ones(batch_size, self.config.post_seq_len).to(attention_mask.device)
+            attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)   
+        
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
