@@ -258,9 +258,11 @@ def main():
         # TODO:
         raise NotImplementedError                  
     elif training_args.training_strategy == "BaseModelWithPrefixProp":
-        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
+        # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
+        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len # - model_args.post_seq_len
         prompt_bart_config = PromptBartConfig(
             pre_seq_len=model_args.pre_seq_len,
+            # post_seq_len=model_args.post_seq_len,
             **config.to_dict()
         )
         model = BartPrefixPropForConditionalGeneration.from_pretrained(
@@ -273,6 +275,7 @@ def main():
             trust_remote_code=model_args.trust_remote_code,
         )
     elif training_args.training_strategy == "BaseModelWithRMTAndPrefixProp":
+        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
         raise NotImplementedError
     else:
         raise NotImplementedError
@@ -292,7 +295,7 @@ def main():
             
     if model.config.decoder_start_token_id is None:
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")    
-        
+
     # Only resize position embedding for baseline models
     # We have implemented memory mechanism for long documents, so don't need to resize
     if training_args.training_strategy == "BaseModel":
