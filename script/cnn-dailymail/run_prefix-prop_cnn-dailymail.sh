@@ -33,7 +33,7 @@ nohup python3 run_summarization.py \
 --dataset_config_name "3.0.0" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
---do_train false \
+--do_train true \
 --do_eval true \
 --do_predict false \
 --per_device_train_batch_size 1 \

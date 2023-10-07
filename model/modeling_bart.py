@@ -826,12 +826,21 @@ class BartEncoder(BartPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+        
+        print(f'{attention_mask.device=}')
         # retrieve input_ids and inputs_embeds
         # batch_size, seq_len, hidden_size
         if propagated_prefix is not None:
             layer0_prefix_embeds = propagated_prefix[0].squeeze(0)
-        # generate() will call encoder first in prepare_input(), then model.forawrd()
-        # so during generation need to pass 
+            batch_size = input_ids.shape[0]
+            print(attention_mask.device)
+            prefix_attention_mask = torch.ones(batch_size, self.config.pre_seq_len).to(attention_mask.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            
+        if propagated_postfix is not None:
+            batch_size = input_ids.shape[0]
+            postfix_attention_mask = torch.ones(batch_size, self.config.post_seq_len).to(attention_mask.device)
+            attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)
         
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -2143,32 +2152,33 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )      
-        
+        print('in the forward')
         # prefix memory cell  
         # generate() will call encoder() first and give encoder_outputs then
         # so in that case, input_ids is None
         if encoder_outputs is None:
             if propagated_prefix is None:
+                print('propagated_prefix is None')
                 batch_size = input_ids.shape[0]
                 (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
                 # print(type(propagated_prefix_past_key_values))
-                if prefix_past_key_values is not None:
-                    prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-                    attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
-                    print(attention_mask.device)
-                if propagated_prefix_past_key_values is not None:
-                    propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-                    attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
+                # if prefix_past_key_values is not None:
+                #     prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+                #     attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+                #     print(attention_mask.device)
+                # if propagated_prefix_past_key_values is not None:
+                #     propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+                #     attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
             else:
-                batch_size = input_ids.shape[0]
+                # batch_size = input_ids.shape[0]
                 prefix_past_key_values = past_key_values
                 propagated_prefix_past_key_values = propagated_prefix
-                if prefix_past_key_values is not None:
-                    prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-                    attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
-                if propagated_prefix_past_key_values is not None:
-                    propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
-                    attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
+                # if prefix_past_key_values is not None:
+                #     postfix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+                #     attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+                # if propagated_prefix_past_key_values is not None:
+                #     propagated_prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.model.device)
+                #     attention_mask = torch.cat((propagated_prefix_attention_mask, attention_mask), dim=1)
         else:
             prefix_past_key_values = None
             propagated_prefix_past_key_values = None
@@ -2178,13 +2188,15 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         # TODO: 可能需要把每一个摘要片段padding到一个长度：似乎模型已经做了这个操作
         if encoder_outputs is None:
             if propagated_postfix is None: #and input_ids is not None:
-                batch_size = input_ids.shape[0]
-                postfix_attention_mask = torch.ones(batch_size, self.post_seq_len).to(self.model.device)
-                attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)
+                # batch_size = input_ids.shape[0]
+                propagated_postfix_past_key_values = propagated_postfix
+                # postfix_attention_mask = torch.ones(batch_size, self.post_seq_len).to(self.model.device)
+                # attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)
             else: 
-                batch_size = input_ids.shape[0]
-                postfix_attention_mask = torch.ones(batch_size, self.post_seq_len).to(self.model.device)
-                attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)
+                # batch_size = input_ids.shape[0]
+                propagated_postfix_past_key_values = propagated_postfix
+                # postfix_attention_mask = torch.ones(batch_size, self.post_seq_len).to(self.model.device)
+                # attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)
         else:
             propagated_postfix_past_key_values = None
             
