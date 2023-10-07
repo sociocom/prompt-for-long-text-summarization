@@ -34,6 +34,7 @@ class PrefixEncoder(nn.Module):
                     nn.Linear(
                         config.prefix_hidden_size,
                         # just one matrix(concat the prefix prompt with the input sequence)
+                        # NOTE: num_hidden_layers is the number of layers in the encoder not all layers
                         config.num_hidden_layers * config.hidden_size,
                     ),
                 )
