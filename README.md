@@ -28,3 +28,5 @@ project/
 
 ## BUG List
 1. Due to unknown reason, the Prefix-tuning from peft library can't be trained by trainer, pls try to use accelerator.
+2. generate() will call encoder() first, then push encoder_outputs to model.forward() which leads to issue
+    * when passing memory cell across segment, encoder will not concat attention mask (maybe need to move concat to encoder??)
