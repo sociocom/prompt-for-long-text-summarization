@@ -826,8 +826,6 @@ class BartEncoder(BartPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        
-        print(f'{attention_mask.device=}')
         # retrieve input_ids and inputs_embeds
         # batch_size, seq_len, hidden_size
         if propagated_prefix is not None:
@@ -1332,6 +1330,18 @@ class BartModel(BartPreTrainedModel):
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
 
+        # print(encoder_outputs)
+        if propagated_prefix is not None:
+            batch_size = encoder_outputs.last_hidden_state.shape[0]
+            print(attention_mask.device)
+            prefix_attention_mask = torch.ones(batch_size, self.config.pre_seq_len).to(attention_mask.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            
+        if propagated_postfix is not None:
+            batch_size = encoder_outputs.last_hidden_state.shape[0]
+            postfix_attention_mask = torch.ones(batch_size, self.config.post_seq_len).to(attention_mask.device)
+            attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)        
+        
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
@@ -2152,7 +2162,7 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )      
-        print('in the forward')
+
         # prefix memory cell  
         # generate() will call encoder() first and give encoder_outputs then
         # so in that case, input_ids is None
