@@ -28,5 +28,10 @@ project/
 
 ## BUG List
 1. Due to unknown reason, the Prefix-tuning from peft library can't be trained by trainer, pls try to use accelerator.
-
+2. It seems that generate() and Trainer.predict() have different funtion call
+    * generate() will first put input_ids to model.encoder(), then give the encoder_outputs to model.forward()
+        * so if we write some custon logic in model.forward before calling encoder(), it will goes wrong in generate()
+    > see: https://github.com/huggingface/transformers/blob/main/src/transformers/generation/utils.py
+    * But Trainer.predict() will directly call model.forward()
+    > see: https://github.com/huggingface/transformers/blob/main/src/transformers/trainer.py
 
