@@ -826,11 +826,13 @@ class BartEncoder(BartPreTrainedModel):
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
+        # print('BartEncoder.forward()')
         # retrieve input_ids and inputs_embeds
         # batch_size, seq_len, hidden_size
         if propagated_prefix is not None:
             layer0_prefix_embeds = propagated_prefix[0].squeeze(0)
             batch_size = input_ids.shape[0]
+            # print(f'propagated_prefix is not None in BartEncoder.forward()')
             prefix_attention_mask = torch.ones(batch_size, self.config.pre_seq_len).to(attention_mask.device)
             attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
             
@@ -1328,17 +1330,20 @@ class BartModel(BartPreTrainedModel):
                 hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
-            
+
+        # print('BartModel.forward()')
+        # print(encoder_outputs)
         if propagated_prefix is not None:
+            # print('propagated_prefix is not None in bart_model')
             batch_size = encoder_outputs.last_hidden_state.shape[0]
-            print(attention_mask.device)
+            # print(attention_mask.device)
             prefix_attention_mask = torch.ones(batch_size, self.config.pre_seq_len).to(attention_mask.device)
             attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
             
         if propagated_postfix is not None:
             batch_size = encoder_outputs.last_hidden_state.shape[0]
             postfix_attention_mask = torch.ones(batch_size, self.config.post_seq_len).to(attention_mask.device)
-            attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)   
+            attention_mask = torch.cat((attention_mask, postfix_attention_mask), dim=1)        
         
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
@@ -2030,8 +2035,9 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
         self.lm_head = nn.Linear(config.d_model, self.model.shared.num_embeddings, bias=False)
 
-        for name, param in self.model.named_parameters():
-            param.requires_grad = False
+        # TODO: add a argument to control it 
+        # for name, param in self.model.named_parameters():
+        #     param.requires_grad = False
 
         self.pre_seq_len = config.pre_seq_len
         self.post_seq_len = config.post_seq_len
@@ -2160,13 +2166,14 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )      
-        print('in the forward')
+
+        # print('BartPrefixPropForConditionalGeneration.forward()')
         # prefix memory cell  
         # generate() will call encoder() first and give encoder_outputs then
         # so in that case, input_ids is None
         if encoder_outputs is None:
             if propagated_prefix is None:
-                print('propagated_prefix is None')
+                # print('propagated_prefix is None in model.forward()')
                 batch_size = input_ids.shape[0]
                 (prefix_past_key_values, propagated_prefix_past_key_values) = self.get_prompt(batch_size=batch_size)
                 # print(type(propagated_prefix_past_key_values))
