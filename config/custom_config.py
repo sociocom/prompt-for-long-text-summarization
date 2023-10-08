@@ -32,6 +32,7 @@ class PromptBartConfig(BartConfig):
                  label_max_size=256,
                  sum_loss=True,
                  propagate_prefix_scalar=False,
+                 fixed_model=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
@@ -48,6 +49,7 @@ class PromptBartConfig(BartConfig):
         self.sum_loss = sum_loss # whether to use summary loss
         self.propagate_prefix = propagate_prefix
         self.propagate_prefix_scalar = propagate_prefix_scalar
+        self.fixed_model = fixed_model # whether to fix the model parameters
         
 # Another method to custom BartConfig
 # existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")
