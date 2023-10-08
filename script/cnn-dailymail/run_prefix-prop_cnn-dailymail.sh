@@ -33,17 +33,17 @@ nohup python3 run_summarization.py \
 --dataset_config_name "3.0.0" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
---do_train false \
+--do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 4 \
---per_device_eval_batch_size 4 \
---num_train_epochs 1 \
---max_train_samples 1000 \
---max_eval_samples 500 \
---max_predict_samples 500 \
+--per_device_train_batch_size 8 \
+--per_device_eval_batch_size 8 \
+--num_train_epochs 5 \
 --max_source_length 1024 \
 --max_target_length 128 \
+--max_train_samples none \
+--max_eval_samples none \
+--max_predict_samples none \
 --pre_seq_len 20 \
 --post_seq_len 128 \
 --generation_num_beams 4 \
@@ -54,3 +54,7 @@ nohup python3 run_summarization.py \
 --training_strategy "$TRAINING_STRATEGY" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &
+
+# --max_train_samples 280000 \
+# --max_eval_samples 10000 \
+# --max_predict_samples 10000 \
