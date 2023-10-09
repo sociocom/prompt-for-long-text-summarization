@@ -2,7 +2,7 @@
 
 # set time zone to Japan/Tokyo
 export TZ=Asia/Tokyo
-export MODEL_NAME=facebook/bart-base
+export MODEL_NAME=facebook/bart-large
 export DATASET_NAME=cnn_dailymail
 export MODEL_DIR_NAME=bart-base
 export TRAINING_STRATEGY=BaseModelWithPrefixProp
@@ -41,9 +41,9 @@ nohup python3 run_summarization.py \
 --num_train_epochs 5 \
 --max_source_length 1024 \
 --max_target_length 128 \
---max_train_samples none \
---max_eval_samples none \
---max_predict_samples none \
+--max_train_samples 500000 \
+--max_eval_samples 500000 \
+--max_predict_samples 500000 \
 --pre_seq_len 20 \
 --post_seq_len 128 \
 --generation_num_beams 4 \
@@ -54,7 +54,3 @@ nohup python3 run_summarization.py \
 --training_strategy "$TRAINING_STRATEGY" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &
-
-# --max_train_samples 280000 \
-# --max_eval_samples 10000 \
-# --max_predict_samples 10000 \
