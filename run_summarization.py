@@ -393,8 +393,9 @@ def main():
                 targets.append(examples[summary_column][i])
 
         inputs = [prefix + inp for inp in inputs]
+        print(f'inputs: {inputs}')
         model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
-
+        print(f'model_inputs: {model_inputs}')
         # Tokenize targets with the `text_target` keyword argument
         labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
 
@@ -421,8 +422,10 @@ def main():
                 remove_columns=column_names,
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
-            )    
-            
+            )
+        print(f"{train_dataset['input_ids']=}")
+        raise NotImplementedError
+      
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
         eval_dataset = raw_datasets["validation"]

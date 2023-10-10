@@ -4,7 +4,7 @@
 export TZ=Asia/Tokyo
 export MODEL_NAME=facebook/bart-large
 export DATASET_NAME=cnn_dailymail
-export MODEL_DIR_NAME=bart-base
+export MODEL_DIR_NAME=bart-large
 export TRAINING_STRATEGY=BaseModelWithPrefixProp
 checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$TRAINING_STRATEGY/$WANDB_NAME
 
