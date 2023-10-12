@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class PromptRMTBaseModel(nn.Module):
+class RMTBaseModel(nn.Module):
     
     def __init__(self, base_model, config):
         super().__init__()
