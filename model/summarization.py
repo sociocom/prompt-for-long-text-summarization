@@ -19,6 +19,7 @@ from peft import PrefixTuningConfig, TaskType, get_peft_model
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
 from model.prefix_encoder import PrefixEncoder
+from model.base import RMTBaseModel
 from config import PromptBartConfig
 
 logger = logging.getLogger(__name__)
@@ -996,6 +997,27 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
                 self.special_token_ids.append(token_id)
             else:
                 setattr(self, token, None)
-# ============================================
-# ================ T5 model ==================
-# ============================================
+
+
+class BartForPubmed(RMTBaseModel):
+    raise NotImplementedError
+
+class RMTForPubmed(RMTBaseModel):
+    raise NotImplementedError
+    
+    def generate(self,):
+        """
+        class transformers.generation.BeamSearchEncoderDecoderOutput: 
+        encoder_hidden_states (tuple(torch.FloatTensor), optional, 
+        returned when output_hidden_states=True is passed 
+        or when config.output_hidden_states=True) 
+        — Tuple of torch.FloatTensor 
+        (one for the output of the embeddings + 
+        one for the output of each layer) of shape 
+        (batch_size*num_beams*num_return_sequences, sequence_length, hidden_size)."
+        """
+        
+        # if we want to take memory from each step
+        # need to pass output_hidden_states=True
+        raise NotImplementedError
+    
