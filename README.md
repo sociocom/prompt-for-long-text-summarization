@@ -35,3 +35,4 @@ project/
 ## BUG List
 1. Due to unknown reason, the Prefix-tuning from peft library can't be trained by trainer, pls try to use accelerator.
 2. generate() will call encoder() first, then push encoder_outputs to model.forward() which leads to issue
+    * see: logs/cnn_dailymail/bart-base/BaseModelWithPrefixProp/2023_10_08/logs_2023_10_08_18_33.txt
