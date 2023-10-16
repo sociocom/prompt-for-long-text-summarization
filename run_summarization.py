@@ -176,7 +176,13 @@ def main():
     #
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
-    if data_args.dataset_name is not None:
+    # TODO: todo from here
+    if data_args.dataset_name == "pubmed":
+        raw_datasets = load_dataset(
+            "json", 
+            data_dir='../datasets/pubmed-processed-final',
+        )
+    elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
             data_args.dataset_name,
@@ -376,7 +382,7 @@ def main():
     # Temporarily set max_target_length for training.
     max_target_length = data_args.max_target_length
     padding = "max_length" if data_args.pad_to_max_length else False    
-    
+
     if training_args.label_smoothing_factor > 0 and not hasattr(model, "prepare_decoder_input_ids_from_labels"):
         logger.warning(
             "label_smoothing is enabled but the `prepare_decoder_input_ids_from_labels` method is not defined for"
@@ -408,6 +414,48 @@ def main():
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
     
+    # TODO: need more modification to fit run_summarization.py
+    def pubmed_preprocess_function(examples):
+        inputs = examples['sections']
+        targets = examples['abstract_text']
+        
+        model_inputs = {
+            'input_ids': [],
+            'attention_masks': [],
+            'labels': [],
+        }
+        
+        for sample_input, sample_targets in zip(inputs, targets):
+            section_input_ids = []
+            section_attention_mask = []
+            section_labels = []
+            for section in sample_input:
+                sample_input_ids = tokenizer(
+                    section, 
+                    max_length=data_args.max_source_length,
+                    padding=padding,
+                    truncation=True,
+                )
+                section_input_ids.append(sample_input_ids['input_ids'])
+                section_attention_mask.append(sample_input_ids['attention_mask'])
+                
+                sample_targets = tokenizer(
+                    section,
+                    max_length=max_target_length,
+                    padding=padding,
+                    truncation=True,
+                )
+                sample_targets = sample_targets['input_ids']
+                if padding == "max_length" and data_args.ignore_pad_token_for_loss:
+                    sample_targets[sample_targets == tokenizer.pad_token_id] = -100
+                section_labels.append(sample_targets)
+                
+            model_inputs['input_ids'].append(section_input_ids)
+            model_inputs['attention_masks'].append(section_attention_mask)
+            model_inputs['labels'].append(section_labels)
+                
+        return model_inputs       
+     
     if training_args.do_train:
         train_dataset = raw_datasets["train"]
         if data_args.max_train_samples is not None:
@@ -422,8 +470,6 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on train dataset",
             )
-        print(f"{train_dataset['input_ids']=}")
-        raise NotImplementedError
       
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
