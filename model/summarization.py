@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from transformers.modeling_outputs import Seq2SeqLMOutput
 
-from model import RMTBaseModel
+from model.base import RMTBaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class BartForPubmed(RMTBaseModel):
     
     def forward(
         self,
-        input_ids: torch.LongTensor = None,
+        input_ids: List[torch.LongTensor] = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor
         attention_mask: Optional[torch.Tensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -72,4 +72,4 @@ class BartForPubmed(RMTBaseModel):
             sec_kwargs = self.prepare_kwargs(sec_input_ids, kwargs)
             
         for sec_index in range(len(input_ids.shape[1])):
-            
+            pass
