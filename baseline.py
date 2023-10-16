@@ -236,7 +236,7 @@ def main():
     label_column = 'highlights'
     lr = 3e-3
     num_epochs = 1
-    batch_size = 1
+    batch_size = 2
     seed = 42
     do_test = True
     set_seed(seed)
@@ -359,6 +359,7 @@ def main():
             model.train()
             total_loss = 0
             for step, batch in enumerate(tqdm(train_dataloader)):
+                print(f'{batch=}')
                 outputs = model(**batch)
                 loss = outputs.loss
                 total_loss += loss.detach().float()
