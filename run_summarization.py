@@ -393,9 +393,8 @@ def main():
                 targets.append(examples[summary_column][i])
 
         inputs = [prefix + inp for inp in inputs]
-        print(f'inputs: {inputs}')
         model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
-        print(f'model_inputs: {model_inputs}')
+        
         # Tokenize targets with the `text_target` keyword argument
         labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
 
