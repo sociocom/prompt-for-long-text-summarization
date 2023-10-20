@@ -9,7 +9,7 @@ class RMTBaseModel(nn.Module):
     
     def __init__(self, base_model, rmt_config, **kwargs):
         super().__init__()
-        self.model = base_model
+        self.base_model = base_model
         self.rmt_config = rmt_config
         
         self.tokenizer = AutoTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
@@ -17,7 +17,7 @@ class RMTBaseModel(nn.Module):
         self.extend_word_embeddings(self.rmt_config.pre_seq_len, self.tokenizer)
         
         if rmt_config.freeze_model:
-            for name, param in self.model.named_parameters():
+            for name, param in self.base_model.named_parameters():
                 param.requires_grad = False
     
     def extract_special_tokens(self, tokenizer):
@@ -35,18 +35,18 @@ class RMTBaseModel(nn.Module):
     
     def extend_word_embeddings(self, num_mem_tokens, tokenizer):
         if num_mem_tokens != 0:   
-            vocab_size = self.model.config.vocab_size
+            vocab_size = self.base_model.config.vocab_size
             extended_vocab_size = vocab_size + num_mem_tokens
             self.num_mem_tokens = num_mem_tokens
             self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
-            self.model.resize_token_embeddings(extended_vocab_size)
+            self.base_model.resize_token_embeddings(extended_vocab_size)
 
             special_tokens = tokenizer.special_tokens_map
             mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
             self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
-        self.model.embeddings = self.model.get_input_embeddings()
+        self.base_model.embeddings = self.base_model.get_input_embeddings()
         
     def set_memory(self, batch_size):
-        memory = self.model.embeddings(self.mem_token_ids)
+        memory = self.base_model.embeddings(self.mem_token_ids)
         memory = memory.repeat(batch_size, 1, 1)
         return memory 

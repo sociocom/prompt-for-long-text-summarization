@@ -24,7 +24,6 @@ class BartForPubmed(RMTBaseModel):
     def prepare_kwargs(self, sec_input_ids, kwargs):
         sec_kwargs = dict(**kwargs)
     
-    
     def forward(
         self,
         input_ids: List[torch.LongTensor] = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor

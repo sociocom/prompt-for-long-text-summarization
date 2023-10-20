@@ -231,7 +231,7 @@ def main():
         token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
-    if training_args.training_strategy == "BaseModel":
+    if training_args.model_type == "BaseModel":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -242,7 +242,7 @@ def main():
             trust_remote_code=model_args.trust_remote_code,
         )  
     # NOTE: it seems that a bug exsits when using trainer with prefix tuning
-    elif training_args.training_strategy == "BaseModelWithPrefixTuning":
+    elif training_args.model_type == "BaseModelWithPrefixTuning":
         model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -259,7 +259,7 @@ def main():
         )
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
-    elif training_args.training_strategy == "BaseModelWithRMT":
+    elif training_args.model_type == "BaseModelWithRMT":
         # TODO:
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -287,9 +287,7 @@ def main():
             )
         else:
             raise NotImplementedError
-        print(model)
-        raise NotImplementedError
-    elif training_args.training_strategy == "BaseModelWithPrefixProp":
+    elif training_args.model_type == "BaseModelWithPrefixProp":
         # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len # - model_args.post_seq_len
         prompt_bart_config = RMTBartConfig(
@@ -306,31 +304,47 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )
-    elif training_args.training_strategy == "BaseModelWithRMTAndPrefixProp":
+    elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
         raise NotImplementedError
     else:
         raise NotImplementedError
+    print(model)
     
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
-    embedding_size = model.get_input_embeddings().weight.shape[0]
-    if len(tokenizer) > embedding_size:
-        model.resize_token_embeddings(len(tokenizer))
-    
-    # For Multi-lingual summarization, we need to set the decoder_start_token_id.
-    if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
-        if isinstance(tokenizer, MBartTokenizer):
-            model.config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
-        else:
-            model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
+    if training_args.task_type == "Normal":
+        embedding_size = model.get_input_embeddings().weight.shape[0]
+        if len(tokenizer) > embedding_size:
+            model.resize_token_embeddings(len(tokenizer))
+        
+        # For Multi-lingual summarization, we need to set the decoder_start_token_id.
+        if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
+            if isinstance(tokenizer, MBartTokenizer):
+                model.config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
+            else:
+                model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
+                
+        if model.config.decoder_start_token_id is None:
+            raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")    
+    elif training_args.task_type == "Segment":
+        embedding_size = model.base_model.get_input_embeddings().weight.shape[0]
+        if len(tokenizer) > embedding_size:
+            model.base_model.resize_token_embeddings(len(tokenizer))
             
-    if model.config.decoder_start_token_id is None:
-        raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")    
-
+        # For Multi-lingual summarization, we need to set the decoder_start_token_id.
+        if model.rmt_config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
+            if isinstance(tokenizer, MBartTokenizer):
+                model.rmt_config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
+            else:
+                model.rmt_config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
+        
+        if model.rmt_config.decoder_start_token_id is None:
+            raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
+        
     # Only resize position embedding for baseline models
     # We have implemented memory mechanism for long documents, so don't need to resize
-    if training_args.training_strategy == "BaseModel":
+    if training_args.model_type == "BaseModel":
         if (
             hasattr(model.config, "max_position_embeddings")
             and model.config.max_position_embeddings < data_args.max_source_length
@@ -414,74 +428,75 @@ def main():
             "label_smoothing is enabled but the `prepare_decoder_input_ids_from_labels` method is not defined for"
             f"`{model.__class__.__name__}`. This will lead to loss being calculated twice and will take up more memory"
         )
-        
-    def preprocess_function(examples):
-        # remove pairs where at least one record is None
-        
-        inputs, targets = [], []
-        for i in range(len(examples[text_column])):
-            if examples[text_column][i] and examples[summary_column][i]:
-                inputs.append(examples[text_column][i])
-                targets.append(examples[summary_column][i])
 
-        inputs = [prefix + inp for inp in inputs]
-        model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
-        
-        # Tokenize targets with the `text_target` keyword argument
-        labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
+    if training_args.task_type == "Normal":
+        def preprocess_function(examples):
+            # remove pairs where at least one record is None
+            
+            inputs, targets = [], []
+            for i in range(len(examples[text_column])):
+                if examples[text_column][i] and examples[summary_column][i]:
+                    inputs.append(examples[text_column][i])
+                    targets.append(examples[summary_column][i])
 
-        # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
-        # padding in the loss.
-        if padding == "max_length" and data_args.ignore_pad_token_for_loss:
-            labels["input_ids"] = [
-                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-            ]
+            inputs = [prefix + inp for inp in inputs]
+            model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
+            
+            # Tokenize targets with the `text_target` keyword argument
+            labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
 
-        model_inputs["labels"] = labels["input_ids"]
-        return model_inputs
+            # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
+            # padding in the loss.
+            if padding == "max_length" and data_args.ignore_pad_token_for_loss:
+                labels["input_ids"] = [
+                    [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+                ]
+
+            model_inputs["labels"] = labels["input_ids"]
+            return model_inputs
+    elif training_args.task_type == "Segment":
+        def preprocess_function(examples):
+            
+            inputs = examples['sections']
+            targets = examples['abstract_text']
+            
+            model_inputs = {
+                'input_ids': [],
+                'attention_masks': [],
+                'labels': [],
+            }
+            
+            for sample_input, sample_targets in zip(inputs, targets):
+                section_input_ids = []
+                section_attention_mask = []
+                section_labels = []
+                for section in sample_input:
+                    sample_input_ids = tokenizer(
+                        section, 
+                        max_length=data_args.max_source_length,
+                        padding=padding,
+                        truncation=True,
+                    )
+                    section_input_ids.append(sample_input_ids['input_ids'])
+                    section_attention_mask.append(sample_input_ids['attention_mask'])
+                    
+                    sample_targets = tokenizer(
+                        section,
+                        max_length=max_target_length,
+                        padding=padding,
+                        truncation=True,
+                    )
+                    sample_targets = sample_targets['input_ids']
+                    if padding == "max_length" and data_args.ignore_pad_token_for_loss:
+                        sample_targets[sample_targets == tokenizer.pad_token_id] = -100
+                    section_labels.append(sample_targets)
+                    
+                model_inputs['input_ids'].append(section_input_ids)
+                model_inputs['attention_masks'].append(section_attention_mask)
+                model_inputs['labels'].append(section_labels)
+                    
+            return model_inputs       
     
-    # TODO: need more modification to fit run_summarization.py
-    def pubmed_preprocess_function(examples):
-        inputs = examples['sections']
-        targets = examples['abstract_text']
-        
-        model_inputs = {
-            'input_ids': [],
-            'attention_masks': [],
-            'labels': [],
-        }
-        
-        for sample_input, sample_targets in zip(inputs, targets):
-            section_input_ids = []
-            section_attention_mask = []
-            section_labels = []
-            for section in sample_input:
-                sample_input_ids = tokenizer(
-                    section, 
-                    max_length=data_args.max_source_length,
-                    padding=padding,
-                    truncation=True,
-                )
-                section_input_ids.append(sample_input_ids['input_ids'])
-                section_attention_mask.append(sample_input_ids['attention_mask'])
-                
-                sample_targets = tokenizer(
-                    section,
-                    max_length=max_target_length,
-                    padding=padding,
-                    truncation=True,
-                )
-                sample_targets = sample_targets['input_ids']
-                if padding == "max_length" and data_args.ignore_pad_token_for_loss:
-                    sample_targets[sample_targets == tokenizer.pad_token_id] = -100
-                section_labels.append(sample_targets)
-                
-            model_inputs['input_ids'].append(section_input_ids)
-            model_inputs['attention_masks'].append(section_attention_mask)
-            model_inputs['labels'].append(section_labels)
-                
-        return model_inputs       
-     
     if training_args.do_train:
         train_dataset = raw_datasets["train"]
         if data_args.max_train_samples is not None:
@@ -528,15 +543,21 @@ def main():
                 load_from_cache_file=not data_args.overwrite_cache,
                 desc="Running tokenizer on prediction dataset",
             )
-            
+
     # Data collator
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
-    data_collator = DataCollatorForSeq2Seq(
-        tokenizer,
-        model=model,
-        label_pad_token_id=label_pad_token_id,
-        pad_to_multiple_of=8 if training_args.fp16 else None,
-    )
+    
+    if training_args.task_type == "Normal":
+        data_collator = DataCollatorForSeq2Seq(
+            tokenizer,
+            model=model,
+            label_pad_token_id=label_pad_token_id,
+            pad_to_multiple_of=8 if training_args.fp16 else None,
+        )
+    elif training_args.task_type == "Segment":
+        # TODO:
+        raise NotImplementedError
+        data_collator = SegmentDataCollatorForSeq2Seq()
 
     # Metric
     metric = evaluate.load("rouge")
@@ -553,7 +574,7 @@ def main():
     
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
-        if isinstance(preds, tuple):
+        if isinstance(preds, tuple): 
             preds = preds[0]
         # Replace -100s used for padding as we can't decode them
         preds = np.where(preds != -100, preds, tokenizer.pad_token_id)

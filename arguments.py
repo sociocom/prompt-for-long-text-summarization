@@ -3,7 +3,7 @@ from transformers import HfArgumentParser, TrainingArguments, Seq2SeqTrainingArg
 from typing import Optional, Literal
 from dataclasses import dataclass, field
 
-TRAINGING_STRATEGIES = [
+MODEL_TYPE = [
     "BaseModel", 
     "BaseModelWithPrefixTuning", 
     "BaseModelWithPrefixProp",
@@ -300,15 +300,21 @@ class CustomTrainingArguments(Seq2SeqTrainingArguments):
     predict_epoch: int = field(
         default=5, metadata={"help": "Ever n epochs to run a predict"}
     )
-    training_strategy: str = field(
+    model_type: str = field(
         default="Normal",
         metadata={
             "help": "The training strategy to use",
-            "choices": TRAINGING_STRATEGIES,
+            "choices": MODEL_TYPE,
         },
     )
     freeze_model: bool = field(
         default=False, metadata={"help": "Fix model parameters"}
+    )
+    task_type: str = field(
+        default='Normal', metadata={
+            "help": "The task type to use",
+            "choices": ["Normal", "Segment"]
+        },
     )
     
 def get_args():
