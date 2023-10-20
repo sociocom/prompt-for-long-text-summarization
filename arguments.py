@@ -307,6 +307,9 @@ class CustomTrainingArguments(Seq2SeqTrainingArguments):
             "choices": TRAINGING_STRATEGIES,
         },
     )
+    freeze_model: bool = field(
+        default=False, metadata={"help": "Fix model parameters"}
+    )
     
 def get_args():
     """Parse all the args."""
