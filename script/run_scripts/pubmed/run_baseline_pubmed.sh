@@ -5,7 +5,7 @@ export TZ=Asia/Tokyo
 export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=pubmed
 export MODEL_DIR_NAME=bart-base
-export MODEL_TYPE=BaseModelWithRMT
+export MODEL_TYPE=BaseModel
 checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/$WANDB_NAME
 
 # create log folder if it doesn't exist
@@ -38,11 +38,11 @@ nohup python3 run_summarization.py \
 --per_device_train_batch_size 1 \
 --per_device_eval_batch_size 1 \
 --num_train_epochs 1 \
---max_train_samples 100 \
+--max_train_samples 200 \
 --max_eval_samples 50 \
 --max_predict_samples 50 \
---max_source_length 4096 \
---max_target_length 256 \
+--max_source_length 1024 \
+--max_target_length 142 \
 --pre_seq_len 0 \
 --post_seq_len 0 \
 --generation_num_beams 4 \

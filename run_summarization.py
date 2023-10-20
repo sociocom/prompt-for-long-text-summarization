@@ -58,9 +58,10 @@ from peft import (
 )
 
 from arguments import get_args
+from config import RMTBartConfig
+from utils import RMTDataCollatorForSeq2Seq
 from model.modeling_bart import BartPrefixPropForConditionalGeneration
 from model.summarization import BartForPubmed
-from config import RMTBartConfig
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +242,23 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
+        if training_args.task_type == "Segment":
+            # prepare rmt parameters
+            rmt_config = RMTBartConfig(
+                pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
+                post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
+                freeze_model=training_args.freeze_model,
+                **config.to_dict()
+            )
+            # load rmt model
+            if data_args.dataset_name == "pubmed":
+                model = BartForPubmed(
+                    base_model=model,
+                    rmt_config=rmt_config,
+                    tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+                )
+            else:
+                raise NotImplementedError
     # NOTE: it seems that a bug exsits when using trainer with prefix tuning
     elif training_args.model_type == "BaseModelWithPrefixTuning":
         model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -260,7 +278,6 @@ def main():
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
     elif training_args.model_type == "BaseModelWithRMT":
-        # TODO:
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
@@ -342,9 +359,9 @@ def main():
         if model.rmt_config.decoder_start_token_id is None:
             raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
         
-    # Only resize position embedding for baseline models
+    # Only resize position embedding for baseline models Normal task
     # We have implemented memory mechanism for long documents, so don't need to resize
-    if training_args.model_type == "BaseModel":
+    if training_args.task_type == "Normal":
         if (
             hasattr(model.config, "max_position_embeddings")
             and model.config.max_position_embeddings < data_args.max_source_length
@@ -462,7 +479,7 @@ def main():
             
             model_inputs = {
                 'input_ids': [],
-                'attention_masks': [],
+                'attention_mask': [],
                 'labels': [],
             }
             
@@ -470,7 +487,7 @@ def main():
                 section_input_ids = []
                 section_attention_mask = []
                 section_labels = []
-                for section in sample_input:
+                for section, target in zip(sample_input, sample_targets):
                     sample_input_ids = tokenizer(
                         section, 
                         max_length=data_args.max_source_length,
@@ -481,7 +498,7 @@ def main():
                     section_attention_mask.append(sample_input_ids['attention_mask'])
                     
                     sample_targets = tokenizer(
-                        section,
+                        target,
                         max_length=max_target_length,
                         padding=padding,
                         truncation=True,
@@ -492,7 +509,7 @@ def main():
                     section_labels.append(sample_targets)
                     
                 model_inputs['input_ids'].append(section_input_ids)
-                model_inputs['attention_masks'].append(section_attention_mask)
+                model_inputs['attention_mask'].append(section_attention_mask)
                 model_inputs['labels'].append(section_labels)
                     
             return model_inputs       
@@ -555,44 +572,51 @@ def main():
             pad_to_multiple_of=8 if training_args.fp16 else None,
         )
     elif training_args.task_type == "Segment":
-        # TODO:
-        raise NotImplementedError
-        data_collator = SegmentDataCollatorForSeq2Seq()
-
+        data_collator = RMTDataCollatorForSeq2Seq(
+            tokenizer,
+            model=model,
+            label_pad_token_id=label_pad_token_id,
+            pad_to_multiple_of=8 if training_args.fp16 else None,
+        )
+    
     # Metric
     metric = evaluate.load("rouge")
-    
-    def postprocess_text(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [label.strip() for label in labels]
+    if training_args.task_type == "Normal":
+        def postprocess_text(preds, labels):
+            preds = [pred.strip() for pred in preds]
+            labels = [label.strip() for label in labels]
 
-        # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+            # rougeLSum expects newline after each sentence
+            preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+            labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
 
-        return preds, labels
-    
-    def compute_metrics(eval_preds):
-        preds, labels = eval_preds
-        if isinstance(preds, tuple): 
-            preds = preds[0]
-        # Replace -100s used for padding as we can't decode them
-        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
-        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-        # Some simple post-processing
-        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-        print(f'decoded_preds: {decoded_preds}')
-        print(f'decoded_labels: {decoded_labels}')
+            return preds, labels
         
-        result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-        result = {k: round(v * 100, 4) for k, v in result.items()}
-        prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-        result["gen_len"] = np.mean(prediction_lens)
-        return result
-    
+        def compute_metrics(eval_preds):
+            preds, labels = eval_preds
+            if isinstance(preds, tuple): 
+                preds = preds[0]
+            # Replace -100s used for padding as we can't decode them
+            preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+            labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            # Some simple post-processing
+            decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+            print(f'decoded_preds: {decoded_preds}')
+            print(f'decoded_labels: {decoded_labels}')
+            
+            result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+            result = {k: round(v * 100, 4) for k, v in result.items()}
+            prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            result["gen_len"] = np.mean(prediction_lens)
+            return result
+        
+    elif training_args.task_type == "Segment":
+        raise NotImplementedError
+        
+        
     # Override the decoding parameters of Seq2SeqTrainer
     training_args.generation_max_length = (
         training_args.generation_max_length
