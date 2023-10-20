@@ -16,11 +16,9 @@ class RMTBaseModel(nn.Module):
         self.extract_special_tokens(self.tokenizer)
         self.extend_word_embeddings(self.rmt_config.pre_seq_len, self.tokenizer)
         
-        if 'sep_token' in self.tokenizer.special_tokens_map:
-            self.segment_size -= 1
-            
-        # for name, param in self.model.named_parameters():
-        #     param.requires_grad = False
+        if rmt_config.freeze_model:
+            for name, param in self.model.named_parameters():
+                param.requires_grad = False
     
     def extract_special_tokens(self, tokenizer):
         """Extract special tokens from tokenizer.

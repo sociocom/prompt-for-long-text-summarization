@@ -53,7 +53,7 @@ from transformers import (
     )
 
 from model.prefix_encoder import PrefixEncoder
-from config import PromptBartConfig
+from config import RMTBartConfig
 
 logger = logging.get_logger(__name__)
 
@@ -2029,7 +2029,7 @@ class BartPrefixPropForConditionalGeneration(BartPreTrainedModel):
     _tied_weights_keys = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight", "lm_head.weight"]
     _keys_to_ignore_on_load_missing = ["final_logits_bias"]
     
-    def __init__(self, config: PromptBartConfig):
+    def __init__(self, config: RMTBartConfig):
         super().__init__(config)
         self.model = BartModel(config)
         self.register_buffer("final_logits_bias", torch.zeros((1, self.model.shared.num_embeddings)))
