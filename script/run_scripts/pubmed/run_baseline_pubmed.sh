@@ -5,12 +5,12 @@ export TZ=Asia/Tokyo
 export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=pubmed
 export MODEL_DIR_NAME=bart-base
-export TRAINING_STRATEGY=BaseModelWithRMT
-checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$TRAINING_STRATEGY/$WANDB_NAME
+export MODEL_TYPE=BaseModelWithRMT
+checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/$WANDB_NAME
 
 # create log folder if it doesn't exist
 current_date=$(date +'%Y_%m_%d')
-log_folder="logs/$DATASET_NAME/$MODEL_DIR_NAME/$TRAINING_STRATEGY/${current_date}"
+log_folder="logs/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/${current_date}"
 mkdir -p $log_folder
 
 # create log file
@@ -42,7 +42,7 @@ nohup python3 run_summarization.py \
 --max_eval_samples 50 \
 --max_predict_samples 50 \
 --max_source_length 4096 \
---max_target_length 512 \
+--max_target_length 256 \
 --pre_seq_len 0 \
 --post_seq_len 0 \
 --generation_num_beams 4 \
@@ -50,6 +50,7 @@ nohup python3 run_summarization.py \
 --evaluation_strategy epoch \
 --save_strategy epoch \
 --load_best_model_at_end True \
---training_strategy "$TRAINING_STRATEGY" \
+--model_type "$MODEL_TYPE" \
+--task_type "Segment" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &

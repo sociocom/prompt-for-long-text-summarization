@@ -5,12 +5,12 @@ export TZ=Asia/Tokyo
 export MODEL_NAME=facebook/bart-large
 export DATASET_NAME=cnn_dailymail
 export MODEL_DIR_NAME=bart-large
-export TRAINING_STRATEGY=BaseModelWithPrefixProp
-checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$TRAINING_STRATEGY/$WANDB_NAME
+export MODEL_TYPE=BaseModelWithPrefixProp
+checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/$WANDB_NAME
 
 # create log folder if it doesn't exist
 current_date=$(date +'%Y_%m_%d')
-log_folder="logs/$DATASET_NAME/$MODEL_DIR_NAME/$TRAINING_STRATEGY/${current_date}"
+log_folder="logs/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/${current_date}"
 mkdir -p $log_folder
 
 # create log file
@@ -51,6 +51,7 @@ nohup python3 run_summarization.py \
 --evaluation_strategy epoch \
 --save_strategy epoch \
 --load_best_model_at_end True \
---training_strategy "$TRAINING_STRATEGY" \
+--model_type "$MODEL_TYPE" \
+--task_type "Normal" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &
