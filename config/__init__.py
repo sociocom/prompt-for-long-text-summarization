@@ -1,1 +1,1 @@
-from .custom_config import *
+from .rmt_config import *
