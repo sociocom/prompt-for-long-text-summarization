@@ -65,7 +65,7 @@ class BartForPubmed(RMTBaseModel):
         
         base_model_outputs = []
         for sec_num, sec_input_ids in enumerate(input_ids):
-            if self.rmt_config['bptt_depth'] != -1:
+            if self.rmt_config.bptt_depth != -1:
                 raise NotImplementedError
             
             sec_kwargs = self.prepare_kwargs(sec_input_ids, kwargs)
