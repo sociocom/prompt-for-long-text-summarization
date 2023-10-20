@@ -5,7 +5,7 @@ export TZ=Asia/Tokyo
 export MODEL_NAME=facebook/bart-base
 export DATASET_NAME=pubmed
 export MODEL_DIR_NAME=bart-base
-export TRAINING_STRATEGY=BaseModel
+export TRAINING_STRATEGY=BaseModelWithRMT
 checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$TRAINING_STRATEGY/$WANDB_NAME
 
 # create log folder if it doesn't exist
@@ -30,20 +30,19 @@ log_filename="${log_folder}/logs_${current_datetime}.txt"
 nohup python3 run_summarization.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
---dataset_config_name "3.0.0" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
 --do_train true \
 --do_eval true \
---do_predict false \
+--do_predict true \
 --per_device_train_batch_size 1 \
 --per_device_eval_batch_size 1 \
 --num_train_epochs 1 \
 --max_train_samples 100 \
 --max_eval_samples 50 \
 --max_predict_samples 50 \
---max_source_length 1024 \
---max_target_length 128 \
+--max_source_length 4096 \
+--max_target_length 512 \
 --pre_seq_len 0 \
 --post_seq_len 0 \
 --generation_num_beams 4 \

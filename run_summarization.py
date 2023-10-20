@@ -59,7 +59,8 @@ from peft import (
 
 from arguments import get_args
 from model.modeling_bart import BartPrefixPropForConditionalGeneration
-from config import PromptBartConfig
+from model.summarization import BartForPubmed
+from config import RMTBartConfig
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ summarization_name_mapping = {
     "wiki_summary": ("article", "highlights"),
     "multi_news": ("document", "summary"),
     # TODO:
-    # Add PubMed
+    "pubmed": ("sections", "abstract_text")
     # Add arXiv
     # Add BookSum
 }
@@ -180,7 +181,7 @@ def main():
     if data_args.dataset_name == "pubmed":
         raw_datasets = load_dataset(
             "json", 
-            data_dir='../datasets/pubmed-processed-final',
+            data_dir='datasets/pubmed-dataset-processed-final',
         )
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
@@ -250,23 +251,48 @@ def main():
             revision=model_args.model_revision,
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
-        )  
-
+        )
         peft_config = PrefixTuningConfig(
             task_type=TaskType.SEQ_2_SEQ_LM,
             inference_mode=False,
             num_virtual_tokens=model_args.pre_seq_len,            
         )
-
         model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
     elif training_args.training_strategy == "BaseModelWithRMT":
         # TODO:
-        raise NotImplementedError                  
+        # load base model
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            token=model_args.token,
+            trust_remote_code=model_args.trust_remote_code,
+        )  
+        # prepare rmt parameters
+        rmt_config = RMTBartConfig(
+            pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
+            post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
+            freeze_model=training_args.freeze_model,
+            **config.to_dict()
+        )
+        # load rmt model
+        if data_args.dataset_name == "pubmed":
+            model = BartForPubmed(
+                base_model=base_model,
+                rmt_config=rmt_config,
+                tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+            )
+        else:
+            raise NotImplementedError
+        print(model)
+        raise NotImplementedError
     elif training_args.training_strategy == "BaseModelWithPrefixProp":
         # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len # - model_args.post_seq_len
-        prompt_bart_config = PromptBartConfig(
+        prompt_bart_config = RMTBartConfig(
             pre_seq_len=model_args.pre_seq_len,
             # post_seq_len=model_args.post_seq_len,
             **config.to_dict()
