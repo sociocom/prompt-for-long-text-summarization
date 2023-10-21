@@ -345,9 +345,9 @@ def main():
         if model.config.decoder_start_token_id is None:
             raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")    
     elif training_args.task_type == "Segment":
-        embedding_size = model.base_model.get_input_embeddings().weight.shape[0]
+        embedding_size = model.model.get_input_embeddings().weight.shape[0]
         if len(tokenizer) > embedding_size:
-            model.base_model.resize_token_embeddings(len(tokenizer))
+            model.model.resize_token_embeddings(len(tokenizer))
             
         # For Multi-lingual summarization, we need to set the decoder_start_token_id.
         if model.rmt_config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
@@ -577,44 +577,45 @@ def main():
             model=model,
             label_pad_token_id=label_pad_token_id,
             pad_to_multiple_of=8 if training_args.fp16 else None,
+            max_target_length=max_target_length,
         )
     
     # Metric
     metric = evaluate.load("rouge")
-    if training_args.task_type == "Normal":
-        def postprocess_text(preds, labels):
-            preds = [pred.strip() for pred in preds]
-            labels = [label.strip() for label in labels]
+    # if training_args.task_type == "Normal":
+    def postprocess_text(preds, labels):
+        preds = [pred.strip() for pred in preds]
+        labels = [label.strip() for label in labels]
 
-            # rougeLSum expects newline after each sentence
-            preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-            labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        # rougeLSum expects newline after each sentence
+        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
 
-            return preds, labels
+        return preds, labels
+    
+    def compute_metrics(eval_preds):
+        preds, labels = eval_preds
+        if isinstance(preds, tuple): 
+            preds = preds[0]
+        # Replace -100s used for padding as we can't decode them
+        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+        # Some simple post-processing
+        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+        print(f'decoded_preds: {decoded_preds}')
+        print(f'decoded_labels: {decoded_labels}')
         
-        def compute_metrics(eval_preds):
-            preds, labels = eval_preds
-            if isinstance(preds, tuple): 
-                preds = preds[0]
-            # Replace -100s used for padding as we can't decode them
-            preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
-            decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-            labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-            decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-            # Some simple post-processing
-            decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-            print(f'decoded_preds: {decoded_preds}')
-            print(f'decoded_labels: {decoded_labels}')
-            
-            result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-            result = {k: round(v * 100, 4) for k, v in result.items()}
-            prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-            result["gen_len"] = np.mean(prediction_lens)
-            return result
+        result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+        result = {k: round(v * 100, 4) for k, v in result.items()}
+        prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+        result["gen_len"] = np.mean(prediction_lens)
+        return result
         
-    elif training_args.task_type == "Segment":
-        raise NotImplementedError
+    # elif training_args.task_type == "Segment":
+    #     pass
         
         
     # Override the decoding parameters of Seq2SeqTrainer

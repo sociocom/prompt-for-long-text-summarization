@@ -9,18 +9,18 @@ class RMTBaseModel(nn.Module):
     
     def __init__(self, base_model, rmt_config, **kwargs):
         super().__init__()
-        self.base_model = base_model
+        self.model = base_model
         self.rmt_config = rmt_config
         
         self.tokenizer = AutoTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
-        self.extract_special_tokens(self.tokenizer)
-        self.extend_word_embeddings(self.rmt_config.pre_seq_len, self.tokenizer)
+        self._extract_special_tokens(self.tokenizer)
+        self._extend_word_embeddings(self.rmt_config.pre_seq_len, self.tokenizer)
         
         if rmt_config.freeze_model:
-            for name, param in self.base_model.named_parameters():
+            for name, param in self.model.named_parameters():
                 param.requires_grad = False
     
-    def extract_special_tokens(self, tokenizer):
+    def _extract_special_tokens(self, tokenizer):
         """Extract special tokens from tokenizer.
         """
         self.pad_token_id = tokenizer.pad_token_id
@@ -33,20 +33,66 @@ class RMTBaseModel(nn.Module):
             else:
                 setattr(self, token, None)
     
-    def extend_word_embeddings(self, num_mem_tokens, tokenizer):
+    def _extend_word_embeddings(self, num_mem_tokens, tokenizer):
         if num_mem_tokens != 0:   
-            vocab_size = self.base_model.config.vocab_size
+            vocab_size = self.model.config.vocab_size
             extended_vocab_size = vocab_size + num_mem_tokens
             self.num_mem_tokens = num_mem_tokens
             self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
-            self.base_model.resize_token_embeddings(extended_vocab_size)
+            self.model.resize_token_embeddings(extended_vocab_size)
 
             special_tokens = tokenizer.special_tokens_map
             mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
             self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
-        self.base_model.embeddings = self.base_model.get_input_embeddings()
+        self.model.embeddings = self.model.get_input_embeddings()
         
-    def set_memory(self, batch_size):
-        memory = self.base_model.embeddings(self.mem_token_ids)
+    def _set_memory(self, batch_size):
+        memory = self.model.embeddings(self.mem_token_ids)
         memory = memory.repeat(batch_size, 1, 1)
         return memory 
+    
+    def _prepare_kwargs(
+        self, 
+        sec_input_ids, 
+        sec_attention_mask,
+        sec_labels,
+        kwargs
+    ):
+        sec_kwargs = dict(**kwargs)
+        
+        sec_kwargs['input_ids'] = None
+        sec_kwargs['inputs_embeds'] = self.model.embeddings(sec_input_ids)
+        sec_kwargs['attention_mask'] = sec_attention_mask
+        sec_kwargs['labels'] = sec_labels
+        
+        return sec_kwargs
+    
+    def _process_outputs(self, model_outputs, output_attentions, output_hidden_states):
+        rmt_out = model_outputs[-1]
+        
+        segment_keys = ['loss']
+        if output_attentions:
+            segment_keys.append('attentions')
+        if output_hidden_states:
+            segment_keys.append('hidden_states')
+            
+        extracted = {}
+        for seg_num, out in enumerate(model_outputs):
+            for key, value in out.items():
+                if any([sk in key for sk in segment_keys]):
+                    extracted[f'{key}_{seg_num}'] = value        
+             
+        if self.rmt_config.sum_loss:       
+            losses = [out['loss'] for out in model_outputs]
+            extracted['loss'] = torch.stack(losses).mean(dim=0)
+            
+        for key, value in extracted.items():
+            rmt_out[key] = value              
+        
+        # drop unnecessary hiddens to save memory
+        if not output_hidden_states:
+            for key in rmt_out.keys():
+                if 'hidden_state' in key:
+                    rmt_out[key] = None              
+        
+        return rmt_out

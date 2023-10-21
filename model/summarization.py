@@ -4,14 +4,22 @@ import torch.nn.functional as F
 
 import logging
 import math
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Callable, Optional, Tuple, Union
 
 from transformers.modeling_outputs import Seq2SeqLMOutput
+from transformers.generation.utils import GenerateOutput
+from transformers.generation.streamers import BaseStreamer
+
+from transformers import (
+    LogitsProcessorList, 
+    StoppingCriteriaList,
+    PreTrainedModel,
+    GenerationConfig,
+) 
 
 from model.base import RMTBaseModel
 
 logger = logging.getLogger(__name__)
-
 
 class BartForPubmed(RMTBaseModel):
     """
@@ -20,13 +28,85 @@ class BartForPubmed(RMTBaseModel):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.generation_config = self.model.generation_config
+        # self.generation_config.max_length = self.generation_config.max_length * 4
         
-    def prepare_kwargs(self, sec_input_ids, kwargs):
-        sec_kwargs = dict(**kwargs)
+    def _process_outputs(self, model_outputs, output_attentions, output_hidden_states):
+        rmt_out = model_outputs[-1]
+        
+        segment_keys = ['loss']
+        if output_attentions:
+            segment_keys.append('attentions')
+        if output_hidden_states:
+            segment_keys.append('hidden_states')
+            
+        extracted = {}
+        for seg_num, out in enumerate(model_outputs):
+            for key, value in out.items():
+                if any([sk in key for sk in segment_keys]):
+                    extracted[f'{key}_{seg_num}'] = value        
+             
+        if self.rmt_config.sum_loss:       
+            losses = [out['loss'] for out in model_outputs]
+            extracted['loss'] = torch.stack(losses).mean(dim=0)
+            
+        for key, value in extracted.items():
+            rmt_out[key] = value              
+        
+        # drop unnecessary hiddens to save memory
+        if not output_hidden_states:
+            for key in rmt_out.keys():
+                if 'hidden_state' in key:
+                    rmt_out[key] = None              
+        
+        return rmt_out
+    
+    def _process_generation_outputs(self, model_outputs):
+        
+        outputs = []
+        for batch_idx in range(len(model_outputs[0])):
+            batch_outputs = []
+            for sample in model_outputs:
+                batch_outputs.append(sample[batch_idx])
+            batch_outputs = torch.concat(batch_outputs)
+            outputs.append(batch_outputs)
+            
+        outputs = torch.stack([o for o in outputs])
+                
+        # outputs = torch.stack([
+        #     torch.cat([sample[batch_idx]] for sample in model_outputs)
+        #     for batch_idx in range(len(model_outputs[0]))
+        # ])
+        
+        return outputs
+        
+    def _prepare_batch_inputs(self, input_ids, attention_mask=None, labels=None):
+        batch_input_ids = None # batch_size, section_num, seq_len 
+        batch_attention_mask = None
+        batch_labels = None
+        
+        batch_input_ids = torch.stack([
+            torch.stack([sample[sec_num] for sample in input_ids])
+            for sec_num in range(input_ids.shape[1])
+        ])
+    
+        if attention_mask is not None:
+            batch_attention_mask = torch.stack([
+                torch.stack([sample[sec_num] for sample in attention_mask])
+                for sec_num in range(attention_mask.shape[1])
+            ])
+            
+        if labels is not None:
+            batch_labels = torch.stack([
+                torch.stack([sample[sec_num] for sample in labels])
+                for sec_num in range(labels.shape[1])
+            ])
+            
+        return batch_input_ids, batch_attention_mask, batch_labels
     
     def forward(
         self,
-        input_ids: List[torch.LongTensor] = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor
+        input_ids: torch.LongTensor = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor
         attention_mask: Optional[torch.Tensor] = None,
         decoder_input_ids: Optional[torch.LongTensor] = None,
         decoder_attention_mask: Optional[torch.LongTensor] = None,
@@ -45,18 +125,6 @@ class BartForPubmed(RMTBaseModel):
     ) -> Union[Tuple, Seq2SeqLMOutput]:
         
         kwargs = {
-            # 'input_ids': input_ids,
-            'attention_mask': attention_mask,
-            'decoder_input_ids': decoder_input_ids,
-            'decoder_attention_mask': decoder_attention_mask,
-            'head_mask': head_mask,
-            'decoder_head_mask': decoder_head_mask,
-            'cross_attn_head_mask': cross_attn_head_mask,
-            'encoder_outputs': encoder_outputs,
-            'past_key_values': past_key_values,
-            'input_emebeds': inputs_embeds,
-            'decoder_inputs_embeds': decoder_inputs_embeds,
-            'labels': labels,
             'use_cache': use_cache,
             'output_attentions': output_attentions,
             'output_hidden_states': output_hidden_states,
@@ -64,11 +132,160 @@ class BartForPubmed(RMTBaseModel):
         }
         
         base_model_outputs = []
+        
+        # reshape input_ids, attention_mask, labels
+        input_ids, attention_mask, labels = self._prepare_batch_inputs(input_ids, attention_mask, labels)
+        
         for sec_num, sec_input_ids in enumerate(input_ids):
             if self.rmt_config.bptt_depth != -1:
                 raise NotImplementedError
             
-            sec_kwargs = self.prepare_kwargs(sec_input_ids, kwargs)
+            sec_attention_mask = attention_mask[sec_num]
+            sec_labels = labels[sec_num]
+            sec_kwargs = self._prepare_kwargs(
+                sec_input_ids,
+                sec_attention_mask,
+                sec_labels,
+                kwargs)
             
-        for sec_index in range(len(input_ids.shape[1])):
-            pass
+            sec_outputs = self.model(**sec_kwargs)
+            base_model_outputs.append(sec_outputs)
+            
+        model_outputs = self._process_outputs(base_model_outputs, output_attentions, output_hidden_states)
+        return model_outputs
+    
+    @torch.no_grad()
+    def generate(
+        self,
+        inputs: Optional[torch.Tensor] = None,
+        generation_config: Optional[GenerationConfig] = None,
+        logits_processor: Optional[LogitsProcessorList] = None,
+        stopping_criteria: Optional[StoppingCriteriaList] = None,
+        prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+        synced_gpus: Optional[bool] = None,
+        assistant_model: Optional["PreTrainedModel"] = None,
+        streamer: Optional["BaseStreamer"] = None,
+        negative_prompt_ids: Optional[torch.Tensor] = None,
+        negative_prompt_attention_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ) -> Union[GenerateOutput, torch.LongTensor]:
+        r"""
+
+        Generates sequences of token ids for models with a language modeling head.
+
+        <Tip warning={true}>
+
+        Most generation-controlling parameters are set in `generation_config` which, if not passed, will be set to the
+        model's default generation configuration. You can override any `generation_config` by passing the corresponding
+        parameters to generate(), e.g. `.generate(inputs, num_beams=4, do_sample=True)`.
+
+        For an overview of generation strategies and code examples, check out the [following
+        guide](../generation_strategies).
+
+        </Tip>
+
+        Parameters:
+            inputs (`torch.Tensor` of varying shape depending on the modality, *optional*):
+                The sequence used as a prompt for the generation or as model inputs to the encoder. If `None` the
+                method initializes it with `bos_token_id` and a batch size of 1. For decoder-only models `inputs`
+                should of in the format of `input_ids`. For encoder-decoder models *inputs* can represent any of
+                `input_ids`, `input_values`, `input_features`, or `pixel_values`.
+            generation_config (`~generation.GenerationConfig`, *optional*):
+                The generation configuration to be used as base parametrization for the generation call. `**kwargs`
+                passed to generate matching the attributes of `generation_config` will override them. If
+                `generation_config` is not provided, the default will be used, which had the following loading
+                priority: 1) from the `generation_config.json` model file, if it exists; 2) from the model
+                configuration. Please note that unspecified parameters will inherit [`~generation.GenerationConfig`]'s
+                default values, whose documentation should be checked to parameterize generation.
+            logits_processor (`LogitsProcessorList`, *optional*):
+                Custom logits processors that complement the default logits processors built from arguments and
+                generation config. If a logit processor is passed that is already created with the arguments or a
+                generation config an error is thrown. This feature is intended for advanced users.
+            stopping_criteria (`StoppingCriteriaList`, *optional*):
+                Custom stopping criteria that complement the default stopping criteria built from arguments and a
+                generation config. If a stopping criteria is passed that is already created with the arguments or a
+                generation config an error is thrown. If your stopping criteria depends on the `scores` input, make
+                sure you pass `return_dict_in_generate=True, output_scores=True` to `generate`. This feature is
+                intended for advanced users.
+            prefix_allowed_tokens_fn (`Callable[[int, torch.Tensor], List[int]]`, *optional*):
+                If provided, this function constraints the beam search to allowed tokens only at each step. If not
+                provided no constraint is applied. This function takes 2 arguments: the batch ID `batch_id` and
+                `input_ids`. It has to return a list with the allowed tokens for the next generation step conditioned
+                on the batch ID `batch_id` and the previously generated tokens `inputs_ids`. This argument is useful
+                for constrained generation conditioned on the prefix, as described in [Autoregressive Entity
+                Retrieval](https://arxiv.org/abs/2010.00904).
+            synced_gpus (`bool`, *optional*):
+                Whether to continue running the while loop until max_length. Unless overridden this flag will be set to
+                `True` under DeepSpeed ZeRO Stage 3 multiple GPUs environment to avoid hanging if one GPU finished
+                generating before other GPUs. Otherwise it'll be set to `False`.
+            assistant_model (`PreTrainedModel`, *optional*):
+                An assistant model that can be used to accelerate generation. The assistant model must have the exact
+                same tokenizer. The acceleration is achieved when forecasting candidate tokens with the assistent model
+                is much faster than running generation with the model you're calling generate from. As such, the
+                assistant model should be much smaller.
+            streamer (`BaseStreamer`, *optional*):
+                Streamer object that will be used to stream the generated sequences. Generated tokens are passed
+                through `streamer.put(token_ids)` and the streamer is responsible for any further processing.
+            negative_prompt_ids (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                The negative prompt needed for some processors such as CFG. The batch size must match the input batch
+                size. This is an experimental feature, subject to breaking API changes in future versions.
+            negative_prompt_attention_mask (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
+                Attention_mask for `negative_prompt_ids`.
+            kwargs (`Dict[str, Any]`, *optional*):
+                Ad hoc parametrization of `generate_config` and/or additional model-specific kwargs that will be
+                forwarded to the `forward` function of the model. If the model is an encoder-decoder model, encoder
+                specific kwargs should not be prefixed and decoder specific kwargs should be prefixed with *decoder_*.
+
+        Return:
+            [`~utils.ModelOutput`] or `torch.LongTensor`: A [`~utils.ModelOutput`] (if `return_dict_in_generate=True`
+            or when `config.return_dict_in_generate=True`) or a `torch.FloatTensor`.
+
+                If the model is *not* an encoder-decoder model (`model.config.is_encoder_decoder=False`), the possible
+                [`~utils.ModelOutput`] types are:
+
+                    - [`~generation.GreedySearchDecoderOnlyOutput`],
+                    - [`~generation.SampleDecoderOnlyOutput`],
+                    - [`~generation.BeamSearchDecoderOnlyOutput`],
+                    - [`~generation.BeamSampleDecoderOnlyOutput`]
+
+                If the model is an encoder-decoder model (`model.config.is_encoder_decoder=True`), the possible
+                [`~utils.ModelOutput`] types are:
+
+                    - [`~generation.GreedySearchEncoderDecoderOutput`],
+                    - [`~generation.SampleEncoderDecoderOutput`],
+                    - [`~generation.BeamSearchEncoderDecoderOutput`],
+                    - [`~generation.BeamSampleEncoderDecoderOutput`]
+        """    
+
+        sec_kwargs = {
+            'generation_config': generation_config,
+            'logits_processor': logits_processor,
+            'stopping_criteria': stopping_criteria,
+            'prefix_allowed_tokens_fn': prefix_allowed_tokens_fn,
+            'synced_gpus': synced_gpus,
+            'assistant_model': assistant_model,
+            'streamer': streamer,
+            'negative_prompt_ids': negative_prompt_ids,
+            'negative_prompt_attention_mask': negative_prompt_attention_mask,
+        }
+        
+        if kwargs is not None:
+            for key, values in kwargs.items():
+                sec_kwargs[key] = values
+        for param in ["attention_mask", "labels"]:
+            if param in sec_kwargs:
+                sec_kwargs.pop(param)
+        
+        base_model_outputs = []
+        input_ids, attention_mask, labels = self._prepare_batch_inputs(sec_kwargs['input_ids'])
+        
+        for idx, sec_inputs in enumerate(input_ids):
+            sec_kwargs['input_ids'] = sec_inputs
+            sec_outputs = self.model.generate(**sec_kwargs)
+            base_model_outputs.append(sec_outputs)
+        
+        # base_model_outputs = torch.stack([o for o in base_model_outputs])
+        base_model_outputs = self._process_generation_outputs(base_model_outputs)
+        print(f'base_model_outputs: {base_model_outputs}')
+        print(f'base_model_shape: {base_model_outputs.shape}')
+        return base_model_outputs

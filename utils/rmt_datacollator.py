@@ -44,6 +44,7 @@ class RMTDataCollatorForSeq2Seq:
     model: Optional[Any] = None
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None
+    max_target_length: Optional[int] = None
     pad_to_multiple_of: Optional[int] = None
     label_pad_token_id: int = -100
     return_tensors: str = "pt"    
@@ -53,11 +54,11 @@ class RMTDataCollatorForSeq2Seq:
         if return_tensors is None:
             return_tensors = self.return_tensors
         labels = [feature['labels'] for feature in features] if "labels" in features[0].keys() else None
-        print(labels)
+        
         # We have to pad the labels before calling `tokenizer.pad` as this method won't pad them and needs them of the
         # same length to return tensors.
         if labels is not None:
-            max_label_length = 0
+            max_label_length = self.max_target_length
             for sample in labels:
                 max_label_length = max(max_label_length, max(len(s) for s in sample))
             
