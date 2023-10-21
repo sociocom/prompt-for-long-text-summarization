@@ -217,7 +217,7 @@ nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
 6. using prefix-tuning in BART
 > https://blog.csdn.net/weixin_42953627/article/details/125586001
 
-7. 无法正确学习, 很可能是因为label的切片策略出了问题。
+7. 无法正确学习: 可能是因为之前padding的时候是用的tokenizer.pad_token_id而不是-100, 没有正确忽略掉loss的计算
 8. 在generate里不需要手动传入attention_mask
 9. 对一个encoder-decoder模型, generate方法会首先调用encoder, 然后会调用model.forward()注意此时encoder已经被pass了
 
