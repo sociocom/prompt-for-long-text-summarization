@@ -66,7 +66,45 @@ class RMTBaseModel(nn.Module):
         sec_kwargs['labels'] = sec_labels
         
         return sec_kwargs
+
+    def _prepare_batch_inputs(self, input_ids, attention_mask=None, labels=None):
+        batch_input_ids = None # batch_size, section_num, seq_len 
+        batch_attention_mask = None
+        batch_labels = None
+        
+        batch_input_ids = torch.stack([
+            torch.stack([sample[sec_num] for sample in input_ids])
+            for sec_num in range(input_ids.shape[1])
+        ])
     
+        if attention_mask is not None:
+            batch_attention_mask = torch.stack([
+                torch.stack([sample[sec_num] for sample in attention_mask])
+                for sec_num in range(attention_mask.shape[1])
+            ])
+            
+        if labels is not None:
+            batch_labels = torch.stack([
+                torch.stack([sample[sec_num] for sample in labels])
+                for sec_num in range(labels.shape[1])
+            ])
+            
+        return batch_input_ids, batch_attention_mask, batch_labels
+
+    def _process_generation_outputs(self, model_outputs):
+        
+        outputs = []
+        for batch_idx in range(len(model_outputs[0])):
+            batch_outputs = []
+            for sample in model_outputs:
+                batch_outputs.append(sample[batch_idx])
+            batch_outputs = torch.concat(batch_outputs)
+            outputs.append(batch_outputs)
+            
+        outputs = torch.stack([o for o in outputs])
+            
+        return outputs
+
     def _process_outputs(self, model_outputs, output_attentions, output_hidden_states):
         rmt_out = model_outputs[-1]
         
