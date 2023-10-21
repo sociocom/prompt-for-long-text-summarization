@@ -284,8 +284,6 @@ class BartForPubmed(RMTBaseModel):
             sec_outputs = self.model.generate(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
         
-        # base_model_outputs = torch.stack([o for o in base_model_outputs])
         base_model_outputs = self._process_generation_outputs(base_model_outputs)
-        print(f'base_model_outputs: {base_model_outputs}')
-        print(f'base_model_shape: {base_model_outputs.shape}')
+
         return base_model_outputs
