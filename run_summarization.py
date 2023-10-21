@@ -18,6 +18,7 @@ Fine-tuning the library models for sequence to sequence.
 """
 # You can also adapt this script on your own sequence to sequence task. Pointers for this are left as comments.
 
+import torch
 import logging
 import os
 import sys
@@ -582,41 +583,95 @@ def main():
     
     # Metric
     metric = evaluate.load("rouge")
-    # if training_args.task_type == "Normal":
-    def postprocess_text(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [label.strip() for label in labels]
+    if training_args.task_type == "Normal":
+        def postprocess_text(preds, labels):
+            preds = [pred.strip() for pred in preds]
+            labels = [label.strip() for label in labels]
 
-        # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+            # rougeLSum expects newline after each sentence
+            preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+            labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
 
-        return preds, labels
-    
-    def compute_metrics(eval_preds):
-        preds, labels = eval_preds
-        if isinstance(preds, tuple): 
-            preds = preds[0]
-        # Replace -100s used for padding as we can't decode them
-        preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
-        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
-        labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+            return preds, labels
+        
+        def compute_metrics(eval_preds):
+            preds, labels = eval_preds
+            if isinstance(preds, tuple): 
+                preds = preds[0]
+            # Replace -100s used for padding as we can't decode them
+            preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+            labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-        # Some simple post-processing
-        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-        print(f'decoded_preds: {decoded_preds}')
-        print(f'decoded_labels: {decoded_labels}')
+            # Some simple post-processing
+            decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+            print(f'decoded_preds: {decoded_preds}')
+            print(f'decoded_labels: {decoded_labels}')
+            
+            result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+            result = {k: round(v * 100, 4) for k, v in result.items()}
+            prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            result["gen_len"] = np.mean(prediction_lens)
+            return result
         
-        result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-        result = {k: round(v * 100, 4) for k, v in result.items()}
-        prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-        result["gen_len"] = np.mean(prediction_lens)
-        return result
+    elif training_args.task_type == "Segment":
+        def postprocess_text(preds, labels):
+            preds = [pred.strip() for pred in preds]
+            labels = [label.strip() for label in labels]
+
+            # rougeLSum expects newline after each sentence
+            preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+            labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+
+            return preds, labels
         
-    # elif training_args.task_type == "Segment":
-    #     pass
-        
+        def compute_metrics(eval_preds):
+            # preds is already combined by sections, but labels is still a list of list
+            # Note: both preds and labels are list instead of tensor
+            # labels: batch_size, section, seq_len
+            preds, labels = eval_preds
+            # print(f'{labels=}')
+            # print(f'shape_0: {len(labels)}')
+            # print(f'shape_1: {len(labels[0])}')
+            # print(f'shape_2: {len(labels[0][0])}')
+            
+            # print(f'{preds=}')
+            # print(f'shape_0: {len(preds)}')
+            # print(f'shape_1: {len(preds[0])}')
+            
+            results = []
+            for sections in labels:
+                new_list = []
+                for section in sections:
+                    new_list.extend(section)
+                results.append(new_list)
+            # print(f'{results=}')
+            labels = np.array(results)
+            
+            # print(f'before: {labels=}')
+            # print(f'before: {preds=}')
+            
+            if isinstance(preds, tuple): 
+                preds = preds[0]
+                
+            # Replace -100s used for padding as we can't decode them
+            preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+            
+            labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            # Some simple post-processing
+            decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+            # print(f'decoded_preds: {decoded_preds}')
+            # print(f'decoded_labels: {decoded_labels}')
+            
+            result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+            result = {k: round(v * 100, 4) for k, v in result.items()}
+            prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            result["gen_len"] = np.mean(prediction_lens)
+            return result        
         
     # Override the decoding parameters of Seq2SeqTrainer
     training_args.generation_max_length = (
