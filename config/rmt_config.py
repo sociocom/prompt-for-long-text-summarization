@@ -21,7 +21,8 @@ class RMTBartConfig(BartConfig):
     def __init__(self,
                  pre_seq_len=0,
                  post_seq_len=0,
-                 input_size=512,
+                 max_section_length=1024,
+                 max_source_length=1024,
                  max_n_segments=4,
                  bptt_depth=-1,
                  prefix_projection=False, 
@@ -37,7 +38,8 @@ class RMTBartConfig(BartConfig):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
         self.post_seq_len = post_seq_len
-        self.input_size = input_size
+        self.max_section_length = max_section_length
+        self.max_source_lenght = max_source_length
         self.max_n_segments = max_n_segments
         self.bptt_depth = bptt_depth
         self.prefix_projection = prefix_projection # whether to use reparametrization trick

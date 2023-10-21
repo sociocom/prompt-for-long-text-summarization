@@ -214,3 +214,14 @@ class BartForPubmed(RMTBaseModel):
         base_model_outputs = self._process_generation_outputs(base_model_outputs)
 
         return base_model_outputs
+    
+class BartRMTForPubmed(RMTBaseModel):
+    """
+    Using BartForConditionalGeneration as base model
+    Without RMT memory structure
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.generation_config = self.model.generation_config
+        # self.generation_config.max_length = self.generation_config.max_length * 4    
+    
