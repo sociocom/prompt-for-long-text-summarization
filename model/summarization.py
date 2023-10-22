@@ -213,8 +213,6 @@ class BartForPubmed(RMTBaseModel):
             sec_kwargs['input_ids'] = sec_inputs
             sec_outputs = self.model.generate(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
-            
-            print(f'{sec_outputs.shape=}')
         
         base_model_outputs = self._process_generation_outputs(base_model_outputs)
 
@@ -244,6 +242,9 @@ class BartRMTForPubmed(RMTBaseModel):
             
         return outputs
     
+    def _pad_generation_output(self, tensor):
+        return F.pad(tensor, (0, self.rmt_config.post_seq_len-tensor.shape[1]), value=self.pad_token_id)
+        
     def forward(
         self,
         input_ids: torch.LongTensor = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor
@@ -369,9 +370,10 @@ class BartRMTForPubmed(RMTBaseModel):
                 sec_kwargs.pop(param) 
                        
         for sec_num, sec_inputs in enumerate(input_ids):
+            
             if self.rmt_config.bptt_depth != -1:
                 raise NotImplementedError        
-            
+
             encoder_sec_kwargs = self._prepare_kwargs(
                 sec_input_ids=sec_inputs,
                 kwargs=encoder_sec_kwargs,
@@ -379,8 +381,6 @@ class BartRMTForPubmed(RMTBaseModel):
                
             encoder_sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
             if summary_embeds is not None:
-                print(f'{encoder_sec_kwargs["inputs_embeds"][:, self.summary_position].shape=}')
-                print(f'{summary_embeds.shape=}')
                 encoder_sec_kwargs['inputs_embeds'][:, self.summary_position] = summary_embeds            
 
             sec_attention_mask = torch.ones_like(sec_inputs)
@@ -394,23 +394,9 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_kwargs['encoder_outputs'] = encoder_outputs
             
             sec_outputs = self.model.generate(**sec_kwargs)
-            print(f'{sec_outputs.shape=}')
-            # print(f'{sec_outputs=}')
-            # print(f'{sec_outputs.shape=}')
             if self.rmt_config.post_seq_len != 0:
-                summary_embeds = self.model.embeddings(sec_outputs)
-                
-            # print(f'{sec_outputs.sequences}')
-            # print(f'{sec_outputs.sequences.shape=}')
-            # print(f'{sec_outputs=}')
-            # if isinstance(sec_outputs.decoder_hidden_states, tuple):
-            #     # summary_embeds = sec_outputs.decoder_hidden_states[1][-1]
-            #     # print(f'{summary_embeds.shape=}')
-            #     for i, layer_hidden_states in enumerate(sec_outputs.decoder_hidden_states):
-            #         print(f"Layer {i + 1}")
-            #         for j, token_hidden_state in enumerate(layer_hidden_states):
-            #             print(f"Token {j + 1}: {token_hidden_state.shape}")
-            # raise NotImplementedError
+                summary_embeds = self._pad_generation_output(sec_outputs)
+                summary_embeds = self.model.embeddings(summary_embeds)
                 
             base_model_outputs.append(sec_outputs)
             

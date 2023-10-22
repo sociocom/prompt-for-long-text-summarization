@@ -136,9 +136,6 @@ class RMTBaseModel(nn.Module):
         return torch.zeros(self.rmt_config.post_seq_len, dtype=torch.long)  
      
     def _process_generation_outputs(self, model_outputs):
-        for sample in model_outputs:
-            print(f'{sample.shape=}')
-        
         outputs = []
         for batch_idx in range(len(model_outputs[0])):
             batch_outputs = []
@@ -148,7 +145,6 @@ class RMTBaseModel(nn.Module):
             outputs.append(batch_outputs)
         
         outputs = torch.stack([o for o in outputs])
-        print(f'{outputs.shape=}')
         return outputs
 
     def _process_outputs(self, model_outputs, output_attentions, output_hidden_states):
