@@ -59,7 +59,7 @@ project/
     | Model | pre_seq_len| post_seq_len| max_source_length | Model fixed | train sample | eval/pred sample | rouge1 | rouge2 | rougeL | batch_size | 
     | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | 
     | Bart-base | 0 | 0 | 1024 | False | 24843 | 1399/1431 | 53.80 | 26.55 | 49.70 | 4 * 3 | 
-    | Bart-base-RMT | 20 | 142 | 860 <br>(1024 - 20 - 142) <br> -2 (cls&eos)| False| 24843 | 1399/1431 | :-: | :-: | :-: | 4 * 3 |   
+    | Bart-base-RMT | 20 | 142 | 860 <br>(1024 - 20 - 142) <br> -1 (bos)| False| 24843 | 1399/1431 | :-: | :-: | :-: | 4 * 3 |
 
 ## BUG List
 1. Due to unknown reason, the Prefix-tuning from peft library can't be trained by trainer, pls try to use accelerator.

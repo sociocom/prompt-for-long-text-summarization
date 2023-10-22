@@ -44,6 +44,8 @@ class RMTBaseModel(nn.Module):
             special_tokens = tokenizer.special_tokens_map
             mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
             self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+            self.summary_position = range(1 + num_mem_tokens + self.rmt_config.max_source_length, self.rmt_config.max_section_length)
+            
         self.model.embeddings = self.model.get_input_embeddings()
         
     def _set_memory(self, batch_size):
@@ -54,17 +56,20 @@ class RMTBaseModel(nn.Module):
     def _prepare_kwargs(
         self, 
         sec_input_ids, 
-        sec_attention_mask,
-        sec_labels,
-        kwargs
+        kwargs,
+        sec_attention_mask=None,
+        sec_labels=None,
     ):
         sec_kwargs = dict(**kwargs)
         
         sec_kwargs['input_ids'] = None
         sec_kwargs['inputs_embeds'] = self.model.embeddings(sec_input_ids)
-        sec_kwargs['attention_mask'] = sec_attention_mask
-        sec_kwargs['labels'] = sec_labels
         
+        if sec_attention_mask is not None:
+            sec_kwargs['attention_mask'] = sec_attention_mask
+        if sec_labels is not None:
+            sec_kwargs['labels'] = sec_labels
+
         return sec_kwargs
 
     def _prepare_batch_inputs(self, input_ids, attention_mask=None, labels=None):
@@ -91,7 +96,7 @@ class RMTBaseModel(nn.Module):
             
         return batch_input_ids, batch_attention_mask, batch_labels
 
-    def _init_prefix_postfix(self, input_ids, attention_mask):
+    def _init_prefix_postfix(self, input_ids, attention_mask=None):
         
         processed_input_ids = []
         for sec_num, sec_input_ids in enumerate(input_ids):
@@ -99,26 +104,29 @@ class RMTBaseModel(nn.Module):
                 self.cls_token.expand(sec_input_ids.shape[0], -1),
                 self.mem_token_ids.expand(sec_input_ids.shape[0], -1),
                 sec_input_ids,
-                self._get_postfix_padding().to(self.model.device).expand(sec_input_ids.shape[0], -1),
-                self.sep_token.expand(sec_input_ids.shape[0], -1)], 
-                dim=1
+                self._get_postfix_padding().to(self.model.device).expand(sec_input_ids.shape[0], -1)],
+                # self.sep_token.expand(sec_input_ids.shape[0], -1)], 
+                dim=1,
             )
             processed_input_ids.append(sec_input_ids)
         processed_input_ids = torch.stack(processed_input_ids)
         
-        processed_attention_mask = []
-        for sec_num, sec_attention_mask in enumerate(attention_mask):
-            sec_attention_mask = torch.cat([
-                torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device),
-                torch.ones(sec_attention_mask.shape[0], self.rmt_config.pre_seq_len, dtype=torch.long).to(self.model.device),
-                sec_attention_mask,
-                self._get_postfix_attention_mask().to(self.model.device).expand(sec_attention_mask.shape[0], -1),
-                torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device)], 
-                dim=1,
-            )
-            processed_attention_mask.append(sec_attention_mask)
-        processed_attention_mask = torch.stack(processed_attention_mask)
-        
+        if attention_mask is not None:
+            processed_attention_mask = []
+            for sec_num, sec_attention_mask in enumerate(attention_mask):
+                sec_attention_mask = torch.cat([
+                    torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device),
+                    torch.ones(sec_attention_mask.shape[0], self.rmt_config.pre_seq_len, dtype=torch.long).to(self.model.device),
+                    sec_attention_mask,
+                    self._get_postfix_attention_mask().to(self.model.device).expand(sec_attention_mask.shape[0], -1)],
+                    # torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device)], 
+                    dim=1,
+                )
+                processed_attention_mask.append(sec_attention_mask)
+            processed_attention_mask = torch.stack(processed_attention_mask)
+        else:
+            processed_attention_mask = None
+            
         return processed_input_ids, processed_attention_mask
     
     def _get_postfix_padding(self,):
@@ -128,6 +136,8 @@ class RMTBaseModel(nn.Module):
         return torch.zeros(self.rmt_config.post_seq_len, dtype=torch.long)  
      
     def _process_generation_outputs(self, model_outputs):
+        for sample in model_outputs:
+            print(f'{sample.shape=}')
         
         outputs = []
         for batch_idx in range(len(model_outputs[0])):
@@ -136,9 +146,9 @@ class RMTBaseModel(nn.Module):
                 batch_outputs.append(sample[batch_idx])
             batch_outputs = torch.concat(batch_outputs)
             outputs.append(batch_outputs)
-            
+        
         outputs = torch.stack([o for o in outputs])
-            
+        print(f'{outputs.shape=}')
         return outputs
 
     def _process_outputs(self, model_outputs, output_attentions, output_hidden_states):

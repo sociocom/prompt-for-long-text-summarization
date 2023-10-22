@@ -39,7 +39,7 @@ class RMTBartConfig(BartConfig):
         self.pre_seq_len = pre_seq_len
         self.post_seq_len = post_seq_len
         self.max_section_length = max_section_length
-        self.max_source_lenght = max_source_length
+        self.max_source_length = max_source_length
         self.max_n_segments = max_n_segments
         self.bptt_depth = bptt_depth
         self.prefix_projection = prefix_projection # whether to use reparametrization trick

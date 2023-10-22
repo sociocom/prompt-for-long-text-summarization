@@ -70,10 +70,10 @@ class BartForPubmed(RMTBaseModel):
             sec_attention_mask = attention_mask[sec_num]
             sec_labels = labels[sec_num]
             sec_kwargs = self._prepare_kwargs(
-                sec_input_ids,
-                sec_attention_mask,
-                sec_labels,
-                kwargs)
+                sec_input_ids=sec_input_ids,
+                sec_attention_mask=sec_attention_mask,
+                sec_labels=sec_labels,
+                kwargs=kwargs)
             
             sec_outputs = self.model(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
@@ -207,9 +207,14 @@ class BartForPubmed(RMTBaseModel):
         input_ids, attention_mask, labels = self._prepare_batch_inputs(sec_kwargs['input_ids'])
         
         for idx, sec_inputs in enumerate(input_ids):
+            if self.rmt_config.bptt_depth != -1:
+                raise NotImplementedError
+            
             sec_kwargs['input_ids'] = sec_inputs
             sec_outputs = self.model.generate(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
+            
+            print(f'{sec_outputs.shape=}')
         
         base_model_outputs = self._process_generation_outputs(base_model_outputs)
 
@@ -224,7 +229,21 @@ class BartRMTForPubmed(RMTBaseModel):
         super().__init__(**kwargs)
         self.generation_config = self.model.generation_config
         # self.generation_config.max_length = self.generation_config.max_length * 4    
-
+        
+    def _process_generation_outputs(self, model_outputs):
+        
+        outputs = []
+        for batch_idx in range(len(model_outputs[0])):
+            batch_outputs = []
+            for sample in model_outputs:
+                batch_outputs.append(sample[batch_idx])
+            batch_outputs = torch.concat(batch_outputs)
+            outputs.append(batch_outputs)
+            
+        outputs = torch.stack([o for o in outputs])
+            
+        return outputs
+    
     def forward(
         self,
         input_ids: torch.LongTensor = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor
@@ -244,13 +263,7 @@ class BartRMTForPubmed(RMTBaseModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, Seq2SeqLMOutput]:
-        print(f'input_ids: {input_ids.shape}')
-        print(f'attention_mask: {attention_mask.shape}')
-        print(f'labels: {labels.shape}')
-        
-        print(f'{input_ids=}')
-        print(f'{attention_mask=}')
-        print(f'{labels=}')  
+
         kwargs = {
             'use_cache': use_cache,
             'output_attentions': output_attentions,
@@ -261,9 +274,11 @@ class BartRMTForPubmed(RMTBaseModel):
         base_model_outputs = []
         
         memory = self._set_memory(input_ids.shape[0])
+        summary_embeds = None
+        
         input_ids, attention_mask, labels = self._prepare_batch_inputs(input_ids, attention_mask, labels)
         input_ids, attention_mask = self._init_prefix_postfix(input_ids, attention_mask)
-      
+        
         for sec_num, sec_input_ids in enumerate(input_ids):
             if self.rmt_config.bptt_depth != -1:
                 raise NotImplementedError
@@ -272,17 +287,135 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_labels = labels[sec_num]
             
             sec_kwargs = self._prepare_kwargs(
-                sec_input_ids,
-                sec_attention_mask,
-                sec_labels,
-                kwargs)
+                sec_input_ids=sec_input_ids,
+                sec_attention_mask=sec_attention_mask,
+                sec_labels=sec_labels,
+                kwargs=kwargs
+            )
             sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
+            
+            if summary_embeds is not None:
+                sec_kwargs['inputs_embeds'][:, self.summary_position] = summary_embeds
             
             sec_outputs = self.model(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
             
             memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position]
-        
+            
+            if self.rmt_config.post_seq_len != 0:
+                summary_embeds = sec_outputs.decoder_hidden_states[-1]
+            
         model_outputs = self._process_outputs(base_model_outputs, output_attentions, output_hidden_states)
         
         return model_outputs
+    
+    @torch.no_grad()
+    def generate(
+        self,
+        inputs: Optional[torch.Tensor] = None,
+        generation_config: Optional[GenerationConfig] = None,
+        logits_processor: Optional[LogitsProcessorList] = None,
+        stopping_criteria: Optional[StoppingCriteriaList] = None,
+        prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+        synced_gpus: Optional[bool] = None,
+        assistant_model: Optional["PreTrainedModel"] = None,
+        streamer: Optional["BaseStreamer"] = None,
+        negative_prompt_ids: Optional[torch.Tensor] = None,
+        negative_prompt_attention_mask: Optional[torch.Tensor] = None,
+        **kwargs,
+    ) -> Union[GenerateOutput, torch.LongTensor]:
+        
+        sec_kwargs = {
+            'generation_config': generation_config,
+            'logits_processor': logits_processor,
+            'stopping_criteria': stopping_criteria,
+            'prefix_allowed_tokens_fn': prefix_allowed_tokens_fn,
+            'synced_gpus': synced_gpus,
+            'assistant_model': assistant_model,
+            'streamer': streamer,
+            'negative_prompt_ids': negative_prompt_ids,
+            'negative_prompt_attention_mask': negative_prompt_attention_mask,
+        }
+        # if self.rmt_config.post_seq_len != 0:
+        #     sec_kwargs['output_hidden_states'] = True
+        #     sec_kwargs['return_dict_in_generate'] = True,
+        
+        encoder_sec_kwargs = {
+            'output_hidden_states': True,
+        }
+        
+        if kwargs is not None:
+            for key, values in kwargs.items():
+                sec_kwargs[key] = values
+        
+        base_model_outputs = []        
+        
+        memory = self._set_memory(sec_kwargs['input_ids'].shape[0])
+        summary_embeds = None
+        
+        input_ids, attention_mask, labels = self._prepare_batch_inputs(
+            input_ids=sec_kwargs['input_ids'],
+            attention_mask=sec_kwargs['attention_mask'],
+        )
+        input_ids, attention_mask = self._init_prefix_postfix(
+            input_ids,
+            attention_mask=attention_mask,
+        )
+        
+        # generate() has _prepare_attention_mask_for_generation 
+        # so we don't need to pass it here
+        for param in ["attention_mask", "labels"]:
+            if param in sec_kwargs:
+                sec_kwargs.pop(param) 
+                       
+        for sec_num, sec_inputs in enumerate(input_ids):
+            if self.rmt_config.bptt_depth != -1:
+                raise NotImplementedError        
+            
+            encoder_sec_kwargs = self._prepare_kwargs(
+                sec_input_ids=sec_inputs,
+                kwargs=encoder_sec_kwargs,
+            )     
+               
+            encoder_sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
+            if summary_embeds is not None:
+                print(f'{encoder_sec_kwargs["inputs_embeds"][:, self.summary_position].shape=}')
+                print(f'{summary_embeds.shape=}')
+                encoder_sec_kwargs['inputs_embeds'][:, self.summary_position] = summary_embeds            
+
+            sec_attention_mask = torch.ones_like(sec_inputs)
+            sec_attention_mask[sec_inputs == self.pad_token_id] = 0
+            encoder_sec_kwargs['attention_mask'] = sec_attention_mask
+
+            encoder_outputs = self.model.get_encoder()(**encoder_sec_kwargs)
+            memory = encoder_outputs.last_hidden_state[:, self.memory_position]
+            
+            sec_kwargs['input_ids'] = None
+            sec_kwargs['encoder_outputs'] = encoder_outputs
+            
+            sec_outputs = self.model.generate(**sec_kwargs)
+            print(f'{sec_outputs.shape=}')
+            # print(f'{sec_outputs=}')
+            # print(f'{sec_outputs.shape=}')
+            if self.rmt_config.post_seq_len != 0:
+                summary_embeds = self.model.embeddings(sec_outputs)
+                
+            # print(f'{sec_outputs.sequences}')
+            # print(f'{sec_outputs.sequences.shape=}')
+            # print(f'{sec_outputs=}')
+            # if isinstance(sec_outputs.decoder_hidden_states, tuple):
+            #     # summary_embeds = sec_outputs.decoder_hidden_states[1][-1]
+            #     # print(f'{summary_embeds.shape=}')
+            #     for i, layer_hidden_states in enumerate(sec_outputs.decoder_hidden_states):
+            #         print(f"Layer {i + 1}")
+            #         for j, token_hidden_state in enumerate(layer_hidden_states):
+            #             print(f"Token {j + 1}: {token_hidden_state.shape}")
+            # raise NotImplementedError
+                
+            base_model_outputs.append(sec_outputs)
+            
+        base_model_outputs = self._process_generation_outputs(base_model_outputs)
+
+        return base_model_outputs        
+        
+            
