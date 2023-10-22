@@ -44,7 +44,7 @@ nohup python3 run_summarization.py \
 --max_source_length 1024 \
 --max_target_length 142 \
 --pre_seq_len 20 \
---post_seq_len 142 \
+--post_seq_len 0 \
 --generation_num_beams 4 \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
