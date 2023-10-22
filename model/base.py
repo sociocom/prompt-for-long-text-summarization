@@ -91,6 +91,42 @@ class RMTBaseModel(nn.Module):
             
         return batch_input_ids, batch_attention_mask, batch_labels
 
+    def _init_prefix_postfix(self, input_ids, attention_mask):
+        
+        processed_input_ids = []
+        for sec_num, sec_input_ids in enumerate(input_ids):
+            sec_input_ids = torch.cat([
+                self.cls_token.expand(sec_input_ids.shape[0], -1),
+                self.mem_token_ids.expand(sec_input_ids.shape[0], -1),
+                sec_input_ids,
+                self._get_postfix_padding().to(self.model.device).expand(sec_input_ids.shape[0], -1),
+                self.sep_token.expand(sec_input_ids.shape[0], -1)], 
+                dim=1
+            )
+            processed_input_ids.append(sec_input_ids)
+        processed_input_ids = torch.stack(processed_input_ids)
+        
+        processed_attention_mask = []
+        for sec_num, sec_attention_mask in enumerate(attention_mask):
+            sec_attention_mask = torch.cat([
+                torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device),
+                torch.ones(sec_attention_mask.shape[0], self.rmt_config.pre_seq_len, dtype=torch.long).to(self.model.device),
+                sec_attention_mask,
+                self._get_postfix_attention_mask().to(self.model.device).expand(sec_attention_mask.shape[0], -1),
+                torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device)], 
+                dim=1,
+            )
+            processed_attention_mask.append(sec_attention_mask)
+        processed_attention_mask = torch.stack(processed_attention_mask)
+        
+        return processed_input_ids, processed_attention_mask
+    
+    def _get_postfix_padding(self,):
+        return torch.ones(self.rmt_config.post_seq_len, dtype=torch.long) * self.pad_token_id
+        
+    def _get_postfix_attention_mask(self,):
+        return torch.zeros(self.rmt_config.post_seq_len, dtype=torch.long)  
+     
     def _process_generation_outputs(self, model_outputs):
         
         outputs = []

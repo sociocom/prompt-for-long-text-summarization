@@ -62,7 +62,7 @@ from arguments import get_args
 from config import RMTBartConfig
 from utils import RMTDataCollatorForSeq2Seq
 from model.modeling_bart import BartPrefixPropForConditionalGeneration
-from model.summarization import BartForPubmed
+from model.summarization import BartForPubmed, BartRMTForPubmed
 
 logger = logging.getLogger(__name__)
 
@@ -294,11 +294,14 @@ def main():
             pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
             post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
             freeze_model=training_args.freeze_model,
+            max_section_length=data_args.max_section_length,
+            max_source_lenght=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-2,
             **config.to_dict()
         )
+        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-2
         # load rmt model
         if data_args.dataset_name == "pubmed":
-            model = BartForPubmed(
+            model = BartRMTForPubmed(
                 base_model=base_model,
                 rmt_config=rmt_config,
                 tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,

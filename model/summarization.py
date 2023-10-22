@@ -224,4 +224,65 @@ class BartRMTForPubmed(RMTBaseModel):
         super().__init__(**kwargs)
         self.generation_config = self.model.generation_config
         # self.generation_config.max_length = self.generation_config.max_length * 4    
-    
+
+    def forward(
+        self,
+        input_ids: torch.LongTensor = None, # our model input_ids is different from BartForConditionalGeneration torch.LongTensor
+        attention_mask: Optional[torch.Tensor] = None,
+        decoder_input_ids: Optional[torch.LongTensor] = None,
+        decoder_attention_mask: Optional[torch.LongTensor] = None,
+        head_mask: Optional[torch.Tensor] = None,
+        decoder_head_mask: Optional[torch.Tensor] = None,
+        cross_attn_head_mask: Optional[torch.Tensor] = None,
+        encoder_outputs: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        decoder_inputs_embeds: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        return_dict: Optional[bool] = None,
+    ) -> Union[Tuple, Seq2SeqLMOutput]:
+        print(f'input_ids: {input_ids.shape}')
+        print(f'attention_mask: {attention_mask.shape}')
+        print(f'labels: {labels.shape}')
+        
+        print(f'{input_ids=}')
+        print(f'{attention_mask=}')
+        print(f'{labels=}')  
+        kwargs = {
+            'use_cache': use_cache,
+            'output_attentions': output_attentions,
+            'output_hidden_states': True,
+            'return_dict': return_dict
+        }
+        
+        base_model_outputs = []
+        
+        memory = self._set_memory(input_ids.shape[0])
+        input_ids, attention_mask, labels = self._prepare_batch_inputs(input_ids, attention_mask, labels)
+        input_ids, attention_mask = self._init_prefix_postfix(input_ids, attention_mask)
+      
+        for sec_num, sec_input_ids in enumerate(input_ids):
+            if self.rmt_config.bptt_depth != -1:
+                raise NotImplementedError
+            
+            sec_attention_mask = attention_mask[sec_num]
+            sec_labels = labels[sec_num]
+            
+            sec_kwargs = self._prepare_kwargs(
+                sec_input_ids,
+                sec_attention_mask,
+                sec_labels,
+                kwargs)
+            sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
+            
+            sec_outputs = self.model(**sec_kwargs)
+            base_model_outputs.append(sec_outputs)
+            
+            memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position]
+        
+        model_outputs = self._process_outputs(base_model_outputs, output_attentions, output_hidden_states)
+        
+        return model_outputs
