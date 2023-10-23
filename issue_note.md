@@ -227,3 +227,8 @@ nohup python run.py >logs/2023_08_26/logs_2023_08_26_08.txt 1>&1 &
 3. 控制记忆单元
 4. 利用prefix-propagation的思路, 在第一段seg生成一个n-layer的prefix tokens(直接插入到hidden里的), 然后第二段开始是直接取第一段的每一层的hidden状态，放入到模型。
 5. 测试一下LLaMa2和其他模型的表现, 不是RMT结构也可以
+
+## BUG List
+1. Due to unknown reason, the Prefix-tuning from peft library can't be trained by trainer, pls try to use accelerator.
+2. generate() will call encoder() first, then push encoder_outputs to model.forward() which leads to issue
+    * see: logs/cnn_dailymail/bart-base/BaseModelWithPrefixProp/2023_10_08/logs_2023_10_08_18_33.txt

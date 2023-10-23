@@ -48,20 +48,18 @@ project/
 * CNN-DailyMail
     | Model | pre_seq_len| post_seq_len| Model fixed | train sample | eval/pred sample | rouge1 | rouge2 | rougeL | batch_size | 
     | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | 
-    | Bart-base | 0 | 0 | None | 100 | 50 | 31.97 | 12.91 | 21.51 | 1 * 4 |
-    | Bart-base Prefix-tuning | 20 | 0 | Fixed | 100 | 50 | 19.48 | 5.68 | 18.55 | 1 * 4 | 
+    | Bart-base | 0 | 0 | True | 100 | 50 | 31.97 | 12.91 | 21.51 | 1 * 4 |
+    | Bart-base Prefix-tuning | 20 | 0 | True | 100 | 50 | 19.48 | 5.68 | 18.55 | 1 * 4 | 
     | Bart-base Prefix-Prop | 20 | 0 | False | 100 | 50 | 32.17 | 13.50 | 29.24 | 1 * 4 | 
     | Bart-base Prefix-Prop | 20 | 0 | False | 287113 | 13368/11490 | 42.86 | 20.09 | 36.71 | 8 * 4 | 
-    | Bart-base Prefix-Prop | 20 | 0 | Fixed | 100 | 50 | 30.47 | 13.09 | 27.73 | 1 * 4 |
+    | Bart-base Prefix-Prop | 20 | 0 | True | 100 | 50 | 30.47 | 13.09 | 27.73 | 1 * 4 |
     | Bart-large Prefix-Prop | 20 | 0 | False | 287113 | 13368/11490 | 44.01 | 20.94 | 41.06 | 8 * 4 | 
 
 * PubMed
     | Model | pre_seq_len| post_seq_len| max_source_length | Model fixed | train sample | eval/pred sample | rouge1 | rouge2 | rougeL | batch_size | 
-    | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | 
-    | Bart-base | 0 | 0 | 1024 | False | 24843 | 1399/1431 | 53.80 | 26.55 | 49.70 | 4 * 3 | 
-    | Bart-base-RMT | 20 | 142 | 860 <br>(1024 - 20 - 142) <br> -1 (bos)| False| 24843 | 1399/1431 | :-: | :-: | :-: | 4 * 3 |
-
-## BUG List
-1. Due to unknown reason, the Prefix-tuning from peft library can't be trained by trainer, pls try to use accelerator.
-2. generate() will call encoder() first, then push encoder_outputs to model.forward() which leads to issue
-    * see: logs/cnn_dailymail/bart-base/BaseModelWithPrefixProp/2023_10_08/logs_2023_10_08_18_33.txt
+    | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |  
+    | Bart-base | 0 | 0 | 861 | False | 24843 | 1399/1431 | :-: | :-: | :-: | 4 * 3 |     
+    | Bart-base | 0 | 0 | 1003 | False | 24843 | 1399/1431 | :-: | :-: | :-: | 4 * 3 |  
+    | Bart-base | 0 | 0 | 1024 | False | 24843 | 1399/1431 | 53.80 | 26.55 | 49.70 | 4 * 3 |   
+    | Bart-base-RMT | 20 | 0 | 1003 <br>(1024 - 20 - 0) <br> -1 (bos)| False | 24843 | 1399/1431 | 46.03 | 20.49 | 42.02 | 4 * 3 |
+    | Bart-base-RMT | 20 | 142 | 861 <br>(1024 - 20 - 142) <br> -1 (bos)| False | 24843 | 1399/1431 | 46.43 | 20.82 | 42.52 | 4 * 3 |
