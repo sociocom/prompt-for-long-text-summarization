@@ -59,7 +59,7 @@ project/
     | Model | pre_seq_len| post_seq_len| max_source_length | Model fixed | train sample | eval/pred sample | rouge1 | rouge2 | rougeL | batch_size | 
     | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |  
     | Bart-base | 0 | 0 | 861 | False | 24843 | 1399/1431 | 53.29 | 25.78 | 49.06 | 4 * 3 |     
-    | Bart-base | 0 | 0 | 1003 | False | 24843 | 1399/1431 | :-: | :-: | :-: | 4 * 3 |  
+    | Bart-base | 0 | 0 | 1003 | False | 24843 | 1399/1431 | 53.67 | 26.44 | 49.56 | 4 * 3 |  
     | Bart-base | 0 | 0 | 1024 | False | 24843 | 1399/1431 | 53.80 | 26.55 | 49.70 | 4 * 3 |   
     | Bart-base-RMT | 20 | 0 | 1003 <br>(1024 - 20 - 0) <br> -1 (bos)| False | 24843 | 1399/1431 | 46.03 | 20.49 | 42.02 | 4 * 3 |
     | Bart-base-RMT | 20 | 142 | 861 <br>(1024 - 20 - 142) <br> -1 (bos)| False | 24843 | 1399/1431 | 46.43 | 20.82 | 42.52 | 4 * 3 |
