@@ -185,6 +185,11 @@ def main():
             "json", 
             data_dir='datasets/pubmed-dataset-processed-final',
         )
+    elif data_args.dataset_name == "pubmed-incremental":
+        raw_datasets = load_dataset(
+            "json",
+            data_dir="datasets/pubmed-dataset-incremental",
+        )
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -252,7 +257,7 @@ def main():
                 **config.to_dict()
             )
             # load rmt model
-            if data_args.dataset_name == "pubmed":
+            if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
                 model = BartForPubmed(
                     base_model=model,
                     rmt_config=rmt_config,
@@ -300,7 +305,7 @@ def main():
         )
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
         # load rmt model
-        if data_args.dataset_name == "pubmed":
+        if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
             model = BartRMTForPubmed(
                 base_model=base_model,
                 rmt_config=rmt_config,
