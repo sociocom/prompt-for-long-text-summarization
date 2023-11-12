@@ -325,6 +325,13 @@ class CustomTrainingArguments(Seq2SeqTrainingArguments):
             "choices": ["Normal", "Segment"]
         },
     )
+    rouge_type: str = field(
+        default="Accumulation", metadata={
+            "help": "The Rouge type to use, Accumulation means calculate rouge score for each section output."
+            "Final means calculate rouge score for the last section output",
+            "choices": ["Accumulation", "Final"]
+        }
+    )
     
 def get_args():
     """Parse all the args."""

@@ -64,6 +64,13 @@ project/
     | Bart-base-RMT | 20 | 0 | 1003 <br>(1024 - 20 - 0) <br> -1 (bos)| False | 24843 | 1399/1431 | 46.03 | 20.49 | 42.02 | 4 * 3 |
     | Bart-base-RMT | 20 | 142 | 861 <br>(1024 - 20 - 142) <br> -1 (bos)| False | 24843 | 1399/1431 | 46.43 | 20.82 | 42.52 | 4 * 3 |
 
+* PubMed Incremental
+    | Model | pre_seq_len | post_seq_len | max_source_length | Model fixed | train sample | eval/pred sample | rouge1 | rouge2 | rougeL | batch_size | 
+    | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |  
+    | Bart-base | 0 | 0 | 1024 | False | 24843 | 1399/1431 | 50.81 | 20.39 | 49.47 | 2 * 3 | 
+    | Bart-base | 0 | 0 | 703 | False | 24843 | 1399/1431 | 50.15 | 19.91 | 48.82 | 2 * 3 | 
+    | Bart-base-RMT | 20 | 300 | 703<br>(1024 - 20 - 300 - 1) | False | 24843 | 1399/1431 | 45.36 | 16.94 | 44.14 | 2 * 3 | 
+    | Bart-base-RMT | 20 | 256 | 747<br>(1024 - 20 - 256 - 1) | False | 24843 | 1399/1431 | 46.21 | 17.24 | 44.96 | 2 * 3 |
 
 ## Model Architecture
 ![Alt text](image.png){:height="1000" width="1000"}

@@ -42,9 +42,9 @@ nohup python3 run_summarization.py \
 --max_eval_samples 5000 \
 --max_predict_samples 5000 \
 --max_source_length 1024 \
---max_target_length 300 \
+--max_target_length 256 \
 --pre_seq_len 20 \
---post_seq_len 300 \
+--post_seq_len 256 \
 --generation_num_beams 4 \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
@@ -52,5 +52,6 @@ nohup python3 run_summarization.py \
 --load_best_model_at_end True \
 --model_type "$MODEL_TYPE" \
 --task_type "Segment" \
+--rouge_type "Accumulation" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &

@@ -35,14 +35,14 @@ nohup python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 4 \
---per_device_eval_batch_size 4 \
+--per_device_train_batch_size 2 \
+--per_device_eval_batch_size 2 \
 --num_train_epochs 5 \
 --max_train_samples 100000 \
 --max_eval_samples 10000 \
 --max_predict_samples 10000 \
---max_source_length 1024 \
---max_target_length 300 \
+--max_source_length 747 \
+--max_target_length 256 \
 --pre_seq_len 0 \
 --post_seq_len 0 \
 --generation_num_beams 4 \
@@ -52,5 +52,6 @@ nohup python3 run_summarization.py \
 --load_best_model_at_end True \
 --model_type "$MODEL_TYPE" \
 --task_type "Segment" \
+--rouge_type "Accumulation" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &
