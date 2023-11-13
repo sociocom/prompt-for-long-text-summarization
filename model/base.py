@@ -34,25 +34,25 @@ class RMTBaseModel(nn.Module):
                 setattr(self, token, None)
     
     def _extend_word_embeddings(self, num_mem_tokens, tokenizer):
-        if num_mem_tokens != 0:   
-            vocab_size = self.model.config.vocab_size
-            extended_vocab_size = vocab_size + num_mem_tokens
-            self.num_mem_tokens = num_mem_tokens
-            self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
-            self.model.resize_token_embeddings(extended_vocab_size)
+        # if num_mem_tokens != 0:   
+        vocab_size = self.model.config.vocab_size
+        extended_vocab_size = vocab_size + num_mem_tokens
+        self.num_mem_tokens = num_mem_tokens
+        self.register_buffer('mem_token_ids', torch.arange(vocab_size, vocab_size + num_mem_tokens))
+        self.model.resize_token_embeddings(extended_vocab_size)
 
-            special_tokens = tokenizer.special_tokens_map
-            mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
-            self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
-            self.summary_position = range(1 + num_mem_tokens + self.rmt_config.max_source_length, self.rmt_config.max_section_length)
-            
+        special_tokens = tokenizer.special_tokens_map
+        mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
+        self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
+        self.summary_position = range(1 + num_mem_tokens + self.rmt_config.max_source_length, self.rmt_config.max_section_length)
+        
         self.model.embeddings = self.model.get_input_embeddings()
         
     def _set_memory(self, batch_size):
         memory = self.model.embeddings(self.mem_token_ids)
         memory = memory.repeat(batch_size, 1, 1)
         return memory 
-    
+
     def _prepare_kwargs(
         self, 
         sec_input_ids, 

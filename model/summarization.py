@@ -274,7 +274,8 @@ class BartRMTForPubmed(RMTBaseModel):
         
         base_model_outputs = []
         
-        memory = self._set_memory(input_ids.shape[0])
+        if self.rmt_config.pre_seq_len != 0:
+            memory = self._set_memory(input_ids.shape[0])
         summary_embeds = None
         
         input_ids, attention_mask, labels = self._prepare_batch_inputs(input_ids, attention_mask, labels)
@@ -293,7 +294,9 @@ class BartRMTForPubmed(RMTBaseModel):
                 sec_labels=sec_labels,
                 kwargs=kwargs
             )
-            sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
+            
+            if self.rmt_config.pre_seq_len != 0:
+                sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
             
             if summary_embeds is not None:
                 sec_kwargs['inputs_embeds'][:, self.summary_position] = summary_embeds
@@ -301,7 +304,8 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_outputs = self.model(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
             
-            memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position]
+            if self.rmt_config.pre_seq_len != 0:
+                memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position]
             
             if self.rmt_config.post_seq_len != 0:
                 summary_embeds = sec_outputs.decoder_hidden_states[-1]
