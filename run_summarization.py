@@ -48,6 +48,7 @@ from transformers import (
     Seq2SeqTrainingArguments,
     set_seed,
 )
+from transformers.generation import GenerationConfig
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, is_offline_mode, send_example_telemetry
 from transformers.utils.versions import require_version
@@ -684,6 +685,19 @@ def main():
     training_args.generation_num_beams = (
         data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     )
+    training_args.generation_config = GenerationConfig(
+        bos_token_id=0,
+        decoder_start_token_id=2,        
+        early_stopping=True,
+        eos_token_id=2,
+        forced_bos_token_id=0,
+        forced_eos_token_id=2,
+        no_repeat_ngram_size=3,
+        num_beams=4,
+        pad_token_id=1,
+        length_penalty=2.0,
+    )
+    print(f'{training_args.generation_config=}')
     
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(

@@ -43,7 +43,7 @@ nohup python3 run_summarization.py \
 --max_predict_samples 10000 \
 --max_source_length 873 \
 --max_target_length 256 \
---pre_seq_len 0 \
+--pre_seq_len 256 \
 --post_seq_len 0 \
 --generation_num_beams 4 \
 --save_total_limit 1 \

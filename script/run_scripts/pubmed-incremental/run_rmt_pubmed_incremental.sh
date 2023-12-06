@@ -27,6 +27,7 @@ log_filename="${log_folder}/logs_${current_datetime}.txt"
 
 # 执行命令并将输出重定向到日志文件
 # nohup accelerate launch run.py \
+# --length_penalty=2.0 \
 nohup python3 run_summarization.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
@@ -42,9 +43,9 @@ nohup python3 run_summarization.py \
 --max_eval_samples 5000 \
 --max_predict_samples 5000 \
 --max_source_length 1024 \
---max_target_length 256 \
---pre_seq_len 128 \
---post_seq_len 256 \
+--max_target_length 312 \
+--pre_seq_len 256 \
+--post_seq_len 0 \
 --generation_num_beams 4 \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
