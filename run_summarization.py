@@ -695,7 +695,7 @@ def main():
         no_repeat_ngram_size=3,
         num_beams=4,
         pad_token_id=1,
-        length_penalty=2.0,
+        length_penalty=3.0,
     )
     print(f'{training_args.generation_config=}')
     
