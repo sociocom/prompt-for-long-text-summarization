@@ -45,7 +45,6 @@ class RMTBaseModel(nn.Module):
         mem_start_ind = int('cls_token' in special_tokens or 'bos_token' in special_tokens)
         self.memory_position = range(mem_start_ind, mem_start_ind + num_mem_tokens)
         self.summary_position = range(1 + num_mem_tokens + self.rmt_config.max_source_length, self.rmt_config.max_section_length)
-        print(f'{self.summary_position=}')
         self.model.embeddings = self.model.get_input_embeddings()
         
     def _set_memory(self, batch_size):
