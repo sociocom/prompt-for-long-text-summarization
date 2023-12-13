@@ -34,9 +34,9 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-max_source_length=511
 pre_seq_len=212
 post_seq_len=300
+max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$max_source_length-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
 
@@ -54,7 +54,7 @@ python3 run_summarization.py \
 --max_train_samples 100000 \
 --max_eval_samples 5000 \
 --max_predict_samples 5000 \
---max_source_length 511 \
+--max_source_length $max_source_length \
 --max_target_length 300 \
 --pre_seq_len $pre_seq_len \
 --post_seq_len $post_seq_len \

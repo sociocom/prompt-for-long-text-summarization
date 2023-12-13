@@ -185,7 +185,7 @@ class DataTrainingArguments:
             )
         },
     )
-    max_summary_length: Optional[int] = field(
+    max_section_length: Optional[int] = field(
         default=None,
         metadata={
             "help": (

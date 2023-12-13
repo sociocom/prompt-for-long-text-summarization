@@ -41,7 +41,7 @@ nohup python3 run_summarization.py \
 --max_train_samples 100000 \
 --max_eval_samples 10000 \
 --max_predict_samples 10000 \
---max_source_length 511 \
+--max_source_length 512 \
 --max_target_length 300 \
 --pre_seq_len 0 \
 --post_seq_len 0 \
