@@ -185,8 +185,8 @@ class DataTrainingArguments:
             )
         },
     )
-    max_section_length: Optional[int] = field(
-        default=1024,
+    max_summary_length: Optional[int] = field(
+        default=None,
         metadata={
             "help": (
                 "The maximum total input sequence length after tokenization with prefix and postfix. Sequences longer "

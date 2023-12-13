@@ -18,17 +18,29 @@ current_datetime=$(date +'%Y_%m_%d_%H_%M')
 log_filename="${log_folder}/logs_${current_datetime}.txt"
 
 # # Weights and biases (wandb) related config. Set use_wandb=none if you don't want to use wandb.
-# use_wandb="wandb" # Set to "none" to disable wandb tracking, or "wandb" to enable it.
-# export DISPLAY_NAME=BaseModel-CnnDailymail
-# export RUN_ID=1
-# export WANDB_MODE=online
-# export LINEAGE=BaseModel-CnnDailymail # This is just a tag on wandb to make tracking runs easier
-# export WANDB_PROJECT_NAME="kaifan-li/BaseModel-CnnDailymail" # IMPORTANT: set this to your own wandb project
+use_wandb=none # Set to "none" to disable wandb tracking, or "wandb" to enable it.
+export DISPLAY_NAME=BartBase-RMT
+export RUN_ID=1
+export WANDB_MODE=online
+export LINEAGE=BartBase-RMT # This is just a tag on wandb to make tracking runs easier
+export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set this to your own wandb project
 
 # 执行命令并将输出重定向到日志文件
 # nohup accelerate launch run.py \
 # --length_penalty=2.0 \
-nohup python3 run_summarization.py \
+
+# for pre_seq_len in 0 20 32 64 128 150 200 212
+# do
+#     for post_seq_len in 0 300  
+#     do
+
+max_source_length=511
+pre_seq_len=212
+post_seq_len=300
+export WANDB_NAME=$DISPLAY_NAME-$max_source_length-$pre_seq_len-$post_seq_len
+# export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
+
+python3 run_summarization.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
@@ -36,23 +48,28 @@ nohup python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 2 \
---per_device_eval_batch_size 2 \
+--per_device_train_batch_size 4 \
+--per_device_eval_batch_size 4 \
 --num_train_epochs 5 \
 --max_train_samples 100000 \
 --max_eval_samples 5000 \
 --max_predict_samples 5000 \
---max_source_length 1024 \
---max_target_length 312 \
---pre_seq_len 256 \
---post_seq_len 0 \
+--max_source_length 511 \
+--max_target_length 300 \
+--pre_seq_len $pre_seq_len \
+--post_seq_len $post_seq_len \
+--fp16 true \
 --generation_num_beams 4 \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
 --save_strategy epoch \
 --load_best_model_at_end True \
+--metric_for_best_model rouge1 \
 --model_type "$MODEL_TYPE" \
 --task_type "Segment" \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &
+#     done
+# done
+

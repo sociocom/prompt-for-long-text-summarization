@@ -99,6 +99,8 @@ summarization_name_mapping = {
     # Add BookSum
 }
 
+import wandb
+wandb.init(project="RMT", entity="lkf1013606100")
 
 def main():
     # See all possible arguments in src/transformers/training_args.py
@@ -255,6 +257,8 @@ def main():
                 pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
                 post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
                 freeze_model=training_args.freeze_model,
+                max_source_length=data_args.max_source_length,
+                max_summary_length=model_args.post_seq_len,
                 **config.to_dict()
             )
             # load rmt model
@@ -300,11 +304,10 @@ def main():
             pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
             post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
             freeze_model=training_args.freeze_model,
-            max_section_length=data_args.max_section_length,
-            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+            max_source_length=data_args.max_source_length,
+            max_summary_length=model_args.post_seq_len,
             **config.to_dict()
         )
-        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
         # load rmt model
         if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
             model = BartRMTForPubmed(
@@ -316,7 +319,7 @@ def main():
             raise NotImplementedError
     elif training_args.model_type == "BaseModelWithPrefixProp":
         # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
-        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len # - model_args.post_seq_len
+        data_args.max_source_length = data_args.max_source_length
         prompt_bart_config = RMTBartConfig(
             pre_seq_len=model_args.pre_seq_len,
             # post_seq_len=model_args.post_seq_len,
@@ -332,7 +335,7 @@ def main():
             trust_remote_code=model_args.trust_remote_code,
         )
     elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
-        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
+        data_args.max_source_length = data_args.max_source_length
         raise NotImplementedError
     else:
         raise NotImplementedError
@@ -685,19 +688,20 @@ def main():
     training_args.generation_num_beams = (
         data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     )
-    training_args.generation_config = GenerationConfig(
-        bos_token_id=0,
-        decoder_start_token_id=2,        
-        early_stopping=True,
-        eos_token_id=2,
-        forced_bos_token_id=0,
-        forced_eos_token_id=2,
-        no_repeat_ngram_size=3,
-        num_beams=4,
-        pad_token_id=1,
-        length_penalty=3.0,
-    )
-    print(f'{training_args.generation_config=}')
+    
+    # training_args.generation_config = GenerationConfig(
+    #     bos_token_id=0,
+    #     decoder_start_token_id=2,        
+    #     early_stopping=True,
+    #     eos_token_id=2,
+    #     forced_bos_token_id=0,
+    #     forced_eos_token_id=2,
+    #     no_repeat_ngram_size=3,
+    #     num_beams=4,
+    #     pad_token_id=1,
+    #     length_penalty=3.0,
+    # )
+    # print(f'{training_args.generation_config=}')
     
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(
