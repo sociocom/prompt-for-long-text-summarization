@@ -100,7 +100,7 @@ summarization_name_mapping = {
 }
 
 import wandb
-wandb.init(project="RMT", entity="lkf1013606100")
+wandb.init(project="RMT", entity='lkf1013606100')
 
 def main():
     # See all possible arguments in src/transformers/training_args.py

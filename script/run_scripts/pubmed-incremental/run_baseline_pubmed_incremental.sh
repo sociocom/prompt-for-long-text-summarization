@@ -42,12 +42,13 @@ nohup python3 run_summarization.py \
 --max_eval_samples 10000 \
 --max_predict_samples 10000 \
 --max_source_length 511 \
---max_target_length 256 \
---pre_seq_len 212 \
---post_seq_len 300 \
+--max_target_length 300 \
+--pre_seq_len 0 \
+--post_seq_len 0 \
 --generation_num_beams 4 \
 --fp16 true \
 --save_total_limit 1 \
+--metric_for_best_model rouge1 \
 --evaluation_strategy epoch \
 --save_strategy epoch \
 --metric_for_best_model rouge1 \

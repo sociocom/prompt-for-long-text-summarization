@@ -63,6 +63,7 @@ python3 run_summarization.py \
 --save_total_limit 1 \
 --evaluation_strategy epoch \
 --save_strategy epoch \
+--metric_for_best_model rouge1 \
 --load_best_model_at_end True \
 --metric_for_best_model rouge1 \
 --model_type "$MODEL_TYPE" \
