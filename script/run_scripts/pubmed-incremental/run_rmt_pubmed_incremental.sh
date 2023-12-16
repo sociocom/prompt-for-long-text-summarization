@@ -29,13 +29,13 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 # nohup accelerate launch run.py \
 # --length_penalty=2.0 \
 
-# for pre_seq_len in 0 20 32 64 128 150 200 212
+# for pre_seq_len in 0 20 32 64 128 150 200 212 256 300 
 # do
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=212
-post_seq_len=300
+pre_seq_len=100
+post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
@@ -48,8 +48,8 @@ python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 4 \
---per_device_eval_batch_size 4 \
+--per_device_train_batch_size 2 \
+--per_device_eval_batch_size 2 \
 --num_train_epochs 5 \
 --max_train_samples 100000 \
 --max_eval_samples 5000 \
@@ -59,7 +59,7 @@ python3 run_summarization.py \
 --pre_seq_len $pre_seq_len \
 --post_seq_len $post_seq_len \
 --generation_num_beams 4 \
---save_total_limit 1 \
+--save_total_limit 2 \
 --evaluation_strategy epoch \
 --save_strategy epoch \
 --metric_for_best_model rouge1 \
@@ -69,6 +69,7 @@ python3 run_summarization.py \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 "$@" > $log_filename 2>&1 &
+
 #     done
 # done
 
