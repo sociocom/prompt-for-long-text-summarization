@@ -34,8 +34,8 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=212
-post_seq_len=0
+pre_seq_len=0
+post_seq_len=300
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
