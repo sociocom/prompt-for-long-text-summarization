@@ -51,9 +51,9 @@ python3 run_summarization.py \
 --per_device_train_batch_size 2 \
 --per_device_eval_batch_size 2 \
 --num_train_epochs 5 \
---max_train_samples 10 \
---max_eval_samples 5 \
---max_predict_samples 5 \
+--max_train_samples 100000 \
+--max_eval_samples 50000 \
+--max_predict_samples 50000 \
 --max_source_length $max_source_length \
 --max_target_length 300 \
 --pre_seq_len $pre_seq_len \
