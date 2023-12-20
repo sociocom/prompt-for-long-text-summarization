@@ -18,7 +18,11 @@ class RMTBaseModel(nn.Module):
         
         if rmt_config.freeze_model:
             for name, param in self.model.named_parameters():
-                param.requires_grad = False
+                if name != 'model.shared.weight':
+                    param.requires_grad = False
+                    print(name, param.requires_grad)
+                elif name == 'model.shared.weight':
+                    print(name, param.requires_grad)
     
     def _extract_special_tokens(self, tokenizer):
         """Extract special tokens from tokenizer.
