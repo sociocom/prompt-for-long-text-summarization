@@ -6,6 +6,7 @@ seqeval
 gpytorch
 evaluate
 nltk
+peft
 wordninja
 
 # required for hyper search
