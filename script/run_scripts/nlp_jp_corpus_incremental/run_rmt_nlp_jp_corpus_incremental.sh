@@ -2,9 +2,9 @@
 
 # set time zone to Japan/Tokyo
 export TZ=Asia/Tokyo
-export MODEL_NAME=facebook/bart-base
-export DATASET_NAME=pubmed-incremental
-export MODEL_DIR_NAME=bart-base
+export MODEL_NAME=ku-nlp/bart-base-japanese
+export DATASET_NAME=NLP_JP_CORPUS_INCREMENTAL_JUMAN
+export MODEL_DIR_NAME=bart-base-japanese
 export MODEL_TYPE=BaseModelWithRMT
 checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/$WANDB_NAME
 
@@ -19,7 +19,7 @@ log_filename="${log_folder}/logs_${current_datetime}.txt"
 
 # # Weights and biases (wandb) related config. Set use_wandb=none if you don't want to use wandb.
 use_wandb=none # Set to "none" to disable wandb tracking, or "wandb" to enable it.
-export DISPLAY_NAME=BartBase-RMT
+export DISPLAY_NAME=BartBase-JP-RMT
 export RUN_ID=1
 export WANDB_MODE=online
 export LINEAGE=BartBase-RMT # This is just a tag on wandb to make tracking runs easier
@@ -34,13 +34,13 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=32
-post_seq_len=300
+pre_seq_len=64
+post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
 
-python3 run_summarization.py \
+python3 run_summarization_jp.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
@@ -48,14 +48,16 @@ python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 2 \
---per_device_eval_batch_size 2 \
---num_train_epochs 5 \
---max_train_samples 100000 \
---max_eval_samples 5000 \
---max_predict_samples 5000 \
+--per_device_train_batch_size 4 \
+--per_device_eval_batch_size 4 \
+--num_train_epochs 10 \
+--max_train_samples 1000 \
+--max_eval_samples 1000 \
+--max_predict_samples 1000 \
 --max_source_length $max_source_length \
 --max_target_length 300 \
+--val_max_target_length 300 \
+--generation_max_length 300 \
 --pre_seq_len $pre_seq_len \
 --post_seq_len $post_seq_len \
 --generation_num_beams 4 \
@@ -69,6 +71,7 @@ python3 run_summarization.py \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 --freeze_model False \
+--learning_rate 3e-6 \
 "$@" > $log_filename 2>&1 &
 
 #     done
