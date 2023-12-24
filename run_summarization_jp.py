@@ -26,6 +26,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
+import spacy
 import pandas as pd
 import datasets
 import evaluate
@@ -608,14 +609,20 @@ def main():
     # Metric
     metric = evaluate.load('rouge')
     def postprocess_text(preds, labels):
+        # sent_detector = nltk.RegexpTokenizer(u'[^　！？。]*[！？。.\n]')
+        
         preds = [pred.strip() for pred in preds]
         labels = [label.strip() for label in labels]
 
+        # preds = ["\n".join(sent_detector.tokenize(pred)) for pred in preds]
+        # labels = ["\n".join(sent_detector.tokenize(label)) for label in labels]
+        
         # rougeLSum expects newline after each sentence
         preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
         labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
 
         return preds, labels
+    
     if training_args.task_type == "Normal":
         def compute_metrics(eval_preds):
             preds, labels = eval_preds
