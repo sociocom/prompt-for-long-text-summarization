@@ -23,14 +23,12 @@ project/
 
 ## Dataset Statistic
 
-* **Pubmed statistic:**
-  | Split | samples |
+* **Pubmed statistic:**| Split | samples |
   | :---: | :-----: |
   | Train | 119924 |
   |  Val  |  6633  |
   | Test |  6658  |
-* **Final statistic after preprocessing**
-  | Split | samples | section_avg_token_size | abstract_avg_token_size |
+* **Final statistic after preprocessing**| Split | samples | section_avg_token_size | abstract_avg_token_size |
   | :---: | :-----: | :--------------------: | :---------------------: |
   | Train |  24843  |          2740          |           299           |
   |  Val  |  1399  |          2752          |           300           |
@@ -140,10 +138,12 @@ PubMed Incremental
 
 **NLP_JP_CORPUS_INCREMENTAL (Lora) **
 
-|   Model   | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr   | Gpu  |
-| :--------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | :----: | :-----: |
-| Bart-base |     20     |      0      |        512        |        300        |        |        |        |   4 * 3   | 5e-5 | 29G   |
-| Bart-large |     20     |              |                  |                  |        |        |        |            |      |       |
+|      Model      | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size |  lr  | Gpu |
+| :-------------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | :--: | :-: |
+| Full-Finetuning |      0      |      0      |        512        |        300        |        |        |        |            | 5e-5 |    |
+| Lora Finetuning |      0      |      0      |                  |                  | 49.30 | 20.33 | 47.58 |            | 53-5 |    |
+|    RMT+Lora    |     20     |      0      |        512        |        300        | 51.15 | 20.50 | 49.38 |   4 * 3   | 5e-5 | 29G |
+|  RMT w/o Lora  |     20     |              |                  |                  |        |        |        |            |      |    |
 
 ## Model Architecture
 

@@ -269,10 +269,10 @@ def main():
                 post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
                 freeze_model=training_args.freeze_model,
                 max_section_length=data_args.max_source_length,
-                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len,
                 **config.to_dict()
             )
-            data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
+            data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
             # load rmt model
             if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
                 model = BartForPubmed(
@@ -317,10 +317,10 @@ def main():
             post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
             freeze_model=training_args.freeze_model,
             max_section_length=data_args.max_source_length,
-            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len,
             **config.to_dict()
         )
-        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
+        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
         # load rmt model
         if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental" or data_args.dataset_name == "NLP_JP_CORPUS_INCREMENTAL_JUMAN":
             model = BartRMTForPubmed(
