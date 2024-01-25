@@ -634,8 +634,8 @@ def main():
         preds = ["\n".join(list(segmenter(pred))) for pred in preds]
         labels = ["\n".join(list(segmenter(label))) for label in labels]
         
-        print(f'{preds=}')
-        print(f'{labels=}')
+        # print(f'{preds=}')
+        # print(f'{labels=}')
         return preds, labels
     
     if training_args.task_type == "Normal":

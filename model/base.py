@@ -4,13 +4,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from transformers import AutoTokenizer
+from peft import LoraConfig, TaskType, get_peft_model
 
 class RMTBaseModel(nn.Module):
     
     def __init__(self, base_model, rmt_config, **kwargs):
         super().__init__()
-        self.model = base_model
         self.rmt_config = rmt_config
+        peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, target_modules=['q_proj', 'k_proj', 'v_proj', 'out_proj'])
+        base_model = get_peft_model(base_model, peft_config)
+        self.model = base_model
+        self.model.print_trainable_parameters()
         
         self.tokenizer = AutoTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         self._extract_special_tokens(self.tokenizer)
