@@ -618,9 +618,24 @@ def main():
         # labels = ["\n".join(sent_detector.tokenize(label)) for label in labels]
         
         # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        # preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+        # labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        
+        import functools
+        from ja_sentence_segmenter.common.pipeline import make_pipeline
+        from ja_sentence_segmenter.concatenate.simple_concatenator import concatenate_matching
+        from ja_sentence_segmenter.normalize.neologd_normalizer import normalize
+        from ja_sentence_segmenter.split.simple_splitter import split_newline, split_punctuation
 
+        split_punc2 = functools.partial(split_punctuation, punctuations=r"．。!?.")
+        # concat_tail_no = functools.partial(concatenate_matching, former_matching_rule=r"^(?P<result>.+)(の)$", remove_former_matched=False)
+        segmenter = make_pipeline(split_punc2)
+
+        preds = ["\n".join(list(segmenter(pred))) for pred in preds]
+        labels = ["\n".join(list(segmenter(label))) for label in labels]
+        
+        print(f'{preds=}')
+        print(f'{labels=}')
         return preds, labels
     
     if training_args.task_type == "Normal":
