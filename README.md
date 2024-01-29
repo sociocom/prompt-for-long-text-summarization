@@ -138,12 +138,13 @@ PubMed Incremental
 
 **NLP_JP_CORPUS_INCREMENTAL (Lora) **
 
-|      Model      | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size |  lr  | Gpu |
-| :-------------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | :--: | :-: |
-| Full-Finetuning |      0      |      0      |        512        |        300        |        |        |        |            | 5e-5 |    |
-| Lora Finetuning |      0      |      0      |                  |                  | 49.30 | 20.33 | 47.58 |            | 53-5 |    |
-|    RMT+Lora    |     20     |      0      |        512        |        300        | 51.15 | 20.50 | 49.38 |   4 * 3   | 5e-5 | 29G |
-|  RMT w/o Lora  |     20     |              |                  |                  |        |        |        |            |      |    |
+|              Model              | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size |  lr  | Gpu |
+| :------------------------------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | :--: | :-: |
+|         Full-Finetuning         |      0      |      0      |        512        |        300        |        |        |        |            | 5e-5 |    |
+| Lora Finetuning<br />(q k v out) |      0      |      0      |                  |                  | 49.30 | 20.33 | 47.58 |            | 53-5 |    |
+|    RMT+Lora<br />(q k v out)    |     20     |      0      |        512        |        300        | 51.15 | 20.50 | 49.38 |   4 * 3   | 5e-5 | 29G |
+|      RMT + Lora<br />(q v)      |     20     |      0      |                  |                  | 48.50 | 20.02 | 46.99 |            | 5e-5 |    |
+|           RMT w/o Lora           |     20     |              |                  |                  |        |        |        |            |      |    |
 
 ## Model Architecture
 

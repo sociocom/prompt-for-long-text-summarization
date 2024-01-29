@@ -47,9 +47,9 @@ class RMTBaseModel(nn.Module):
         
         self.mem_embeddings = nn.Embedding(num_mem_tokens, self.model.config.hidden_size)
         # init from eos_token
-        self.mem_embeddings.weight.data[:,:] = (
-            self.model.embeddings.weight[tokenizer.eos_token_id]
-        )
+        # self.mem_embeddings.weight.data[:,:] = (
+        #     self.model.embeddings.weight[tokenizer.eos_token_id]
+        # )
         
         self.register_buffer('mem_token_ids', torch.arange(0, num_mem_tokens))
         self.memory_position = range(0, num_mem_tokens)
