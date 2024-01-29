@@ -17,11 +17,12 @@ from transformers import BartConfig
 # TODO: print(cumtom_config) will raise Error
 #       but print(custom_config.xxx)| print(custom_config.to_dict()) is ok
 # TODO：need to rewrite __str__ method
-class PromptBartConfig(BartConfig):
+class RMTBartConfig(BartConfig):
     def __init__(self,
-                 pre_seq_len=20,
-                 post_seq_len=128,
-                 input_size=512,
+                 pre_seq_len=0,
+                 post_seq_len=0,
+                 max_section_length=None,
+                 max_source_length=None,
                  max_n_segments=4,
                  bptt_depth=-1,
                  prefix_projection=False, 
@@ -32,12 +33,13 @@ class PromptBartConfig(BartConfig):
                  label_max_size=256,
                  sum_loss=True,
                  propagate_prefix_scalar=False,
-                 fixed_model=False,
+                 freeze_model=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.pre_seq_len = pre_seq_len
         self.post_seq_len = post_seq_len
-        self.input_size = input_size
+        self.max_section_length = max_section_length
+        self.max_source_length = max_source_length
         self.max_n_segments = max_n_segments
         self.bptt_depth = bptt_depth
         self.prefix_projection = prefix_projection # whether to use reparametrization trick
@@ -49,7 +51,7 @@ class PromptBartConfig(BartConfig):
         self.sum_loss = sum_loss # whether to use summary loss
         self.propagate_prefix = propagate_prefix
         self.propagate_prefix_scalar = propagate_prefix_scalar
-        self.fixed_model = fixed_model # whether to fix the model parameters
+        self.freeze_model = freeze_model # whether to freeze the model parameters
         
 # Another method to custom BartConfig
 # existing_config = BartConfig.from_pretrained("facebook/bart-large-cnn")

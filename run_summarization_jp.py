@@ -26,11 +26,13 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
+import spacy
+import pandas as pd
 import datasets
 import evaluate
 import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from filelock import FileLock
 
 import transformers
@@ -46,6 +48,7 @@ from transformers import (
     MBartTokenizerFast,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
+    EarlyStoppingCallback,
     set_seed,
 )
 from transformers.generation import GenerationConfig
@@ -94,7 +97,8 @@ summarization_name_mapping = {
     "wiki_summary": ("article", "highlights"),
     "multi_news": ("document", "summary"),
     # TODO:
-    "pubmed": ("sections", "abstract_text")
+    "pubmed": ("sections", "abstract_text"),
+    "NLP_JP_CORPUS_INCREMENTAL_JUMAN": ("sections", "abs_incremental"),
     # Add arXiv
     # Add BookSum
 }
@@ -193,6 +197,13 @@ def main():
             "json",
             data_dir="datasets/pubmed-dataset-incremental",
         )
+    elif data_args.dataset_name == "NLP_JP_CORPUS_INCREMENTAL_JUMAN":
+        data_frame = pd.read_json('datasets/NLP_JP_CORPUS_INCREMENTAL_JUMAN/NLP_JP_CORPUS_INCREMENTAL_JUMAN.json', orient='records', encoding='utf-8')
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.25, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.125/(0.625+0.125), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+        
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -258,10 +269,10 @@ def main():
                 post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
                 freeze_model=training_args.freeze_model,
                 max_section_length=data_args.max_source_length,
-                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len,
                 **config.to_dict()
             )
-            data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
+            data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
             # load rmt model
             if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
                 model = BartForPubmed(
@@ -306,12 +317,12 @@ def main():
             post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
             freeze_model=training_args.freeze_model,
             max_section_length=data_args.max_source_length,
-            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len,
             **config.to_dict()
         )
-        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
+        data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
         # load rmt model
-        if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
+        if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental" or data_args.dataset_name == "NLP_JP_CORPUS_INCREMENTAL_JUMAN":
             model = BartRMTForPubmed(
                 base_model=base_model,
                 rmt_config=rmt_config,
@@ -490,7 +501,7 @@ def main():
         def preprocess_function(examples):
             
             inputs = examples['sections']
-            targets = examples['abstract_text']
+            targets = examples['abs_incremental']
             
             model_inputs = {
                 'input_ids': [],
@@ -596,16 +607,37 @@ def main():
         )
     
     # Metric
-    metric = evaluate.load("rouge")
+    metric = evaluate.load('rouge')
     def postprocess_text(preds, labels):
+        # sent_detector = nltk.RegexpTokenizer(u'[^　！？。]*[！？。.\n]')
+        
         preds = [pred.strip() for pred in preds]
         labels = [label.strip() for label in labels]
 
+        # preds = ["\n".join(sent_detector.tokenize(pred)) for pred in preds]
+        # labels = ["\n".join(sent_detector.tokenize(label)) for label in labels]
+        
         # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        # preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+        # labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        
+        import functools
+        from ja_sentence_segmenter.common.pipeline import make_pipeline
+        from ja_sentence_segmenter.concatenate.simple_concatenator import concatenate_matching
+        from ja_sentence_segmenter.normalize.neologd_normalizer import normalize
+        from ja_sentence_segmenter.split.simple_splitter import split_newline, split_punctuation
 
+        split_punc2 = functools.partial(split_punctuation, punctuations=r"．。!?.")
+        # concat_tail_no = functools.partial(concatenate_matching, former_matching_rule=r"^(?P<result>.+)(の)$", remove_former_matched=False)
+        segmenter = make_pipeline(split_punc2)
+
+        preds = ["\n".join(list(segmenter(pred))) for pred in preds]
+        labels = ["\n".join(list(segmenter(label))) for label in labels]
+        
+        # print(f'{preds=}')
+        # print(f'{labels=}')
         return preds, labels
+    
     if training_args.task_type == "Normal":
         def compute_metrics(eval_preds):
             preds, labels = eval_preds
@@ -619,10 +651,11 @@ def main():
 
             # Some simple post-processing
             decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-            print(f'decoded_preds: {decoded_preds}')
-            print(f'decoded_labels: {decoded_labels}')
+            # print(f'decoded_preds: {decoded_preds}')
+            # print(f'decoded_labels: {decoded_labels}')
             
-            result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+            result = metric.compute(predictions=decoded_preds, references=decoded_labels, 
+                                    tokenizer=lambda x: x.split(), use_stemmer=True)
             result = {k: round(v * 100, 4) for k, v in result.items()}
             prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
             result["gen_len"] = np.mean(prediction_lens)
@@ -672,7 +705,8 @@ def main():
                 # print(f'decoded_preds: {decoded_preds}')
                 # print(f'decoded_labels: {decoded_labels}')
                 
-                result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+                result = metric.compute(predictions=decoded_preds, references=decoded_labels, 
+                                        tokenizer=lambda x: x.split(), use_stemmer=True)
                 result = {k: round(v * 100, 4) for k, v in result.items()}
                 prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
                 result["gen_len"] = np.mean(prediction_lens)
@@ -691,19 +725,24 @@ def main():
         data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
     )
     
-    # training_args.generation_config = GenerationConfig(
+    # generation_config = GenerationConfig(
     #     bos_token_id=0,
     #     decoder_start_token_id=2,        
-    #     early_stopping=True,
+    #     early_stopping=False,
     #     eos_token_id=2,
     #     forced_bos_token_id=0,
     #     forced_eos_token_id=2,
     #     no_repeat_ngram_size=3,
     #     num_beams=4,
     #     pad_token_id=1,
-    #     length_penalty=3.0,
+    #     length_penalty=2.0,
+    #     max_length=300,
+    #     min_length=200,
     # )
-    # print(f'{training_args.generation_config=}')
+
+    # training_args.generation_config = generation_config
+    
+    # training_args.generation_config = AutoConfig.from_pretrained('ku-nlp/bart-base-japanese')
     
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(
@@ -714,8 +753,9 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )   
-    
+    print(f'{trainer.model.generation_config=}')
     # Training
     if training_args.do_train:
         checkpoint = None

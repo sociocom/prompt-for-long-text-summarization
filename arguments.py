@@ -3,7 +3,7 @@ from transformers import HfArgumentParser, TrainingArguments, Seq2SeqTrainingArg
 from typing import Optional, Literal
 from dataclasses import dataclass, field
 
-TRAINGING_STRATEGIES = [
+MODEL_TYPE = [
     "BaseModel", 
     "BaseModelWithPrefixTuning", 
     "BaseModelWithPrefixProp",
@@ -185,6 +185,15 @@ class DataTrainingArguments:
             )
         },
     )
+    max_section_length: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "The maximum total input sequence length after tokenization with prefix and postfix. Sequences longer "
+                "than this will be truncated, sequences shorter will be padded."
+            )
+        },
+    )
     max_target_length: Optional[int] = field(
         default=128,
         metadata={
@@ -300,12 +309,28 @@ class CustomTrainingArguments(Seq2SeqTrainingArguments):
     predict_epoch: int = field(
         default=5, metadata={"help": "Ever n epochs to run a predict"}
     )
-    training_strategy: str = field(
+    model_type: str = field(
         default="Normal",
         metadata={
             "help": "The training strategy to use",
-            "choices": TRAINGING_STRATEGIES,
+            "choices": MODEL_TYPE,
         },
+    )
+    freeze_model: bool = field(
+        default=False, metadata={"help": "Fix model parameters"}
+    )
+    task_type: str = field(
+        default='Normal', metadata={
+            "help": "The task type to use",
+            "choices": ["Normal", "Segment"]
+        },
+    )
+    rouge_type: str = field(
+        default="Accumulation", metadata={
+            "help": "The Rouge type to use, Accumulation means calculate rouge score for each section output."
+            "Final means calculate rouge score for the last section output",
+            "choices": ["Accumulation", "Final"]
+        }
     )
     
 def get_args():
