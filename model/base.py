@@ -11,10 +11,10 @@ class RMTBaseModel(nn.Module):
     def __init__(self, base_model, rmt_config, **kwargs):
         super().__init__()
         self.rmt_config = rmt_config
-        peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, target_modules=['k_proj', 'v_proj'])
-        base_model = get_peft_model(base_model, peft_config)
+        # peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, target_modules=['k_proj', 'v_proj'])
+        # base_model = get_peft_model(base_model, peft_config)
         self.model = base_model
-        self.model.print_trainable_parameters()
+        # self.model.print_trainable_parameters()
         
         self.tokenizer = AutoTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         self._extract_special_tokens(self.tokenizer)

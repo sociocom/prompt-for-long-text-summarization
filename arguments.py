@@ -124,6 +124,10 @@ class ModelArguments:
         default=False,
         metadata={"help": "Apply a two-layer MLP head over the prefix embeddings"},
     )
+    use_lora: bool = field(
+        default=False,
+        metadata={"help": "enable LORA fine-tuning"},
+    )
 
 @dataclass
 class DataTrainingArguments:

@@ -96,9 +96,11 @@ summarization_name_mapping = {
     "xsum": ("document", "summary"),
     "wiki_summary": ("article", "highlights"),
     "multi_news": ("document", "summary"),
-    # TODO:
+
+    # User added
     "pubmed": ("sections", "abstract_text"),
     "NLP_JP_CORPUS_INCREMENTAL_JUMAN": ("sections", "abs_incremental"),
+    "tobyoki": ("text", "incremental_summary")
     # Add arXiv
     # Add BookSum
 }
@@ -203,7 +205,12 @@ def main():
         raw_datasets = raw_datasets.train_test_split(test_size=0.25, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.125/(0.625+0.125), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
-        
+    elif data_args.dataset_name == "tobyoki":
+        data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -282,24 +289,6 @@ def main():
                 )
             else:
                 raise NotImplementedError
-    # NOTE: it seems that a bug exsits when using trainer with prefix tuning
-    elif training_args.model_type == "BaseModelWithPrefixTuning":
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-        peft_config = PrefixTuningConfig(
-            task_type=TaskType.SEQ_2_SEQ_LM,
-            inference_mode=False,
-            num_virtual_tokens=model_args.pre_seq_len,            
-        )
-        model = get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
     elif training_args.model_type == "BaseModelWithRMT":
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -321,37 +310,28 @@ def main():
             **config.to_dict()
         )
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
-        # load rmt model
-        if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental" or data_args.dataset_name == "NLP_JP_CORPUS_INCREMENTAL_JUMAN":
-            model = BartRMTForPubmed(
-                base_model=base_model,
-                rmt_config=rmt_config,
-                tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        
+        # enable peft
+        if model_args.use_lora:
+            peft_config = LoraConfig(
+                task_type=TaskType.SEQ_2_SEQ_LM, 
+                inference_mode=False, 
+                r=8, 
+                lora_alpha=32, 
+                lora_dropout=0.1, 
+                target_modules=['k_proj', 'v_proj']
             )
-        else:
-            raise NotImplementedError
-    elif training_args.model_type == "BaseModelWithPrefixProp":
-        # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
-        data_args.max_source_length = data_args.max_source_length
-        prompt_bart_config = RMTBartConfig(
-            pre_seq_len=model_args.pre_seq_len,
-            # post_seq_len=model_args.post_seq_len,
-            **config.to_dict()
+            base_model = get_peft_model(base_model, peft_config)
+            
+        # load rmt model
+        model = BartRMTForPubmed(
+            base_model=base_model,
+            rmt_config=rmt_config,
+            tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         )
-        model = BartPrefixPropForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=prompt_bart_config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-    elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
-        data_args.max_source_length = data_args.max_source_length
-        raise NotImplementedError
     else:
         raise NotImplementedError
+    
     print(model)
     
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
@@ -445,8 +425,10 @@ def main():
         
     # Get the column names for input/target.
     dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
+    print(f'{dataset_columns=}')
     if data_args.text_column is None:
         text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
+        print(f'{text_column=}')
     else:
         text_column = data_args.text_column
         if text_column not in column_names:
@@ -500,8 +482,11 @@ def main():
     elif training_args.task_type == "Segment":
         def preprocess_function(examples):
             
-            inputs = examples['sections']
-            targets = examples['abs_incremental']
+            # inputs = examples['sections']
+            # targets = examples['abs_incremental']
+            
+            inputs = examples['text']
+            targets = examples['incremental_summary']
             
             model_inputs = {
                 'input_ids': [],
@@ -514,6 +499,7 @@ def main():
                 section_attention_mask = []
                 section_labels = []
                 for section, target in zip(sample_input, sample_targets):
+
                     sample_input_ids = tokenizer(
                         section, 
                         max_length=data_args.max_source_length,
