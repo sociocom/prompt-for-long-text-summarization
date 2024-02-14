@@ -290,6 +290,7 @@ def main():
             else:
                 raise NotImplementedError
     elif training_args.model_type == "BaseModelWithRMT":
+        
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
             model_args.model_name_or_path,
@@ -300,6 +301,11 @@ def main():
             token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
+        
+        # extend model embeddings
+        tokenizer.add_tokens('\n')
+        base_model.resize_token_embeddings(len(tokenizer))
+    
         # prepare rmt parameters
         rmt_config = RMTBartConfig(
             pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
@@ -329,6 +335,7 @@ def main():
             rmt_config=rmt_config,
             tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         )
+        
     else:
         raise NotImplementedError
     
@@ -742,6 +749,7 @@ def main():
         callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )   
     print(f'{trainer.model.generation_config=}')
+    
     # Training
     if training_args.do_train:
         checkpoint = None

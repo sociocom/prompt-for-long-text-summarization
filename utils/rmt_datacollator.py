@@ -50,6 +50,7 @@ class RMTDataCollatorForSeq2Seq:
     return_tensors: str = "pt"    
     
     def __call__(self, features, return_tensors=None):
+        
         # features: list[dict], batch_size = len(features)
         if return_tensors is None:
             return_tensors = self.return_tensors
@@ -99,7 +100,10 @@ class RMTDataCollatorForSeq2Seq:
                 pad_to_multiple_of=self.pad_to_multiple_of,
                 return_tensors=return_tensors,
             )
-                
+            # print(f'{idx=}\n')
+            # if inputs['input_ids'] is not None:
+                # print(f"inputs: {inputs['input_ids'].shape=}")
+            # print(f"feature: {feature['input_ids'].shape}=")
             if idx == 0:
                 inputs['input_ids'] = feature['input_ids'].unsqueeze(0)
                 inputs['attention_mask'] = feature['attention_mask'].unsqueeze(0)
