@@ -100,7 +100,8 @@ summarization_name_mapping = {
     # User added
     "pubmed": ("sections", "abstract_text"),
     "NLP_JP_CORPUS_INCREMENTAL_JUMAN": ("sections", "abs_incremental"),
-    "tobyoki": ("text", "incremental_summary")
+    "tobyoki": ("text", "incremental_summary"),
+    "tobyoki-pairwise": ("text", "incremental_summary"),
     # Add arXiv
     # Add BookSum
 }
@@ -207,6 +208,12 @@ def main():
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
     elif data_args.dataset_name == "tobyoki":
         data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+    elif data_args.dataset_name == 'tobyoki-pairwise':
+        data_frame = pd.read_json('datasets/tobyoki-pairwise/tobyoki-event_summary_juman_processed_pairwise.json', orient='records', encoding='utf-8', lines=False)
         raw_datasets = Dataset.from_pandas(data_frame)
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
