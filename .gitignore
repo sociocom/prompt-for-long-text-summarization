@@ -166,7 +166,7 @@ cython_debug/
 # data
 /data
 /datasets
-*.csv
+
 
 # logs
 logs.txt
