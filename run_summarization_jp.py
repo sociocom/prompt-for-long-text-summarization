@@ -208,10 +208,15 @@ def main():
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
     elif data_args.dataset_name == "tobyoki":
         data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        def truncate_max_segments(examples):
+            return examples[:10]
+        for column in data_frame.columns:
+            data_frame[column] = data_frame[column].apply(truncate_max_segments)
         raw_datasets = Dataset.from_pandas(data_frame)
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+
     elif data_args.dataset_name == 'tobyoki-pairwise':
         data_frame = pd.read_json('datasets/tobyoki-pairwise/tobyoki-event_summary_juman_processed_pairwise.json', orient='records', encoding='utf-8', lines=False)
         raw_datasets = Dataset.from_pandas(data_frame)
@@ -439,10 +444,8 @@ def main():
         
     # Get the column names for input/target.
     dataset_columns = summarization_name_mapping.get(data_args.dataset_name, None)
-    print(f'{dataset_columns=}')
     if data_args.text_column is None:
         text_column = dataset_columns[0] if dataset_columns is not None else column_names[0]
-        print(f'{text_column=}')
     else:
         text_column = data_args.text_column
         if text_column not in column_names:

@@ -53,9 +53,9 @@ CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --per_device_train_batch_size 1 \
 --per_device_eval_batch_size 1 \
 --num_train_epochs 1 \
---max_train_samples 1 \
---max_eval_samples 1 \
---max_predict_samples 1 \
+--max_train_samples 100 \
+--max_eval_samples 100 \
+--max_predict_samples 100 \
 --max_source_length $max_source_length \
 --max_target_length 300 \
 --val_max_target_length 300 \
