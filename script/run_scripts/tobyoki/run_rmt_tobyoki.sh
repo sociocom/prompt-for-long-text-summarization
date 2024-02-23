@@ -40,22 +40,22 @@ max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
 
-CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
+CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
 --push_to_hub \
 --push_to_hub_model_id "bart-base-japanese-RMT"-$DATASET_NAME \
---do_train true \
+--do_train false \
 --do_eval false \
---do_predict true \
---per_device_train_batch_size 2 \
---per_device_eval_batch_size 2 \
---num_train_epochs 10 \
+--do_predict True \
+--per_device_train_batch_size 1 \
+--per_device_eval_batch_size 1 \
+--num_train_epochs 1 \
 --max_train_samples 100 \
 --max_eval_samples 100 \
---max_predict_samples 100 \
+--max_predict_samples 1 \
 --max_source_length $max_source_length \
 --max_target_length 300 \
 --val_max_target_length 300 \
