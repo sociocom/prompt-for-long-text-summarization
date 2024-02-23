@@ -50,9 +50,9 @@ CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --do_train true \
 --do_eval false \
 --do_predict true \
---per_device_train_batch_size 1 \
---per_device_eval_batch_size 1 \
---num_train_epochs 1 \
+--per_device_train_batch_size 2 \
+--per_device_eval_batch_size 2 \
+--num_train_epochs 10 \
 --max_train_samples 100 \
 --max_eval_samples 100 \
 --max_predict_samples 100 \
@@ -73,7 +73,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 --freeze_model false \
---learning_rate 5e-5 \
+--learning_rate 3e-6 \
 --use_lora false \
 "$@" > $log_filename 2>&1 &
 

@@ -209,7 +209,7 @@ def main():
     elif data_args.dataset_name == "tobyoki":
         data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
         def truncate_max_segments(examples):
-            return examples[:10]
+            return examples[:20]
         for column in data_frame.columns:
             data_frame[column] = data_frame[column].apply(truncate_max_segments)
         raw_datasets = Dataset.from_pandas(data_frame)
@@ -260,7 +260,7 @@ def main():
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     tokenizer = AutoTokenizer.from_pretrained(
@@ -268,7 +268,7 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     if training_args.model_type == "BaseModel":
@@ -278,7 +278,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         if training_args.task_type == "Segment":
@@ -310,7 +310,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         
