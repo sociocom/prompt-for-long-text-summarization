@@ -46,16 +46,16 @@ CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
 --push_to_hub \
---push_to_hub_model_id "bart-base-japanese-RMT"-$DATASET_NAME \
---do_train false \
---do_eval false \
---do_predict True \
+--push_to_hub_model_id "bart-base-japanese-RMT"-$DATASET_NAME-$pre_seq_len \
+--do_train true \
+--do_eval true \
+--do_predict true \
 --per_device_train_batch_size 1 \
 --per_device_eval_batch_size 1 \
---num_train_epochs 1 \
+--num_train_epochs 10 \
 --max_train_samples 100 \
 --max_eval_samples 100 \
---max_predict_samples 1 \
+--max_predict_samples 100 \
 --max_source_length $max_source_length \
 --max_target_length 300 \
 --val_max_target_length 300 \

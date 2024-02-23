@@ -330,6 +330,7 @@ class BartRMTForPubmed(RMTBaseModel):
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         
+        self.model.eval()
         sec_kwargs = {
             'generation_config': generation_config,
             'logits_processor': logits_processor,
@@ -392,7 +393,7 @@ class BartRMTForPubmed(RMTBaseModel):
             encoder_sec_kwargs['attention_mask'] = sec_attention_mask
 
             encoder_outputs = self.model.get_encoder()(**encoder_sec_kwargs)
-            memory = encoder_outputs.last_hidden_state[:, self.memory_position]
+            memory = encoder_outputs.last_hidden_state[:, self.memory_position].detach()
             
             sec_kwargs['input_ids'] = None
             sec_kwargs['encoder_outputs'] = encoder_outputs

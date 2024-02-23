@@ -315,8 +315,8 @@ def main():
         )  
         
         # extend model embeddings
-        tokenizer.add_tokens('\n')
-        base_model.resize_token_embeddings(len(tokenizer))
+        # tokenizer.add_tokens('\n')
+        # base_model.resize_token_embeddings(len(tokenizer))
     
         # prepare rmt parameters
         rmt_config = RMTBartConfig(
