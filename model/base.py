@@ -8,9 +8,9 @@ from peft import LoraConfig, TaskType, get_peft_model
 
 class RMTBaseModel(nn.Module):
     
-    def __init__(self, base_model, rmt_config, **kwargs):
+    def __init__(self, base_model, config, **kwargs):
         super().__init__()
-        self.rmt_config = rmt_config
+        self.config = config
         # peft_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, inference_mode=False, r=8, lora_alpha=32, lora_dropout=0.1, target_modules=['k_proj', 'v_proj'])
         # base_model = get_peft_model(base_model, peft_config)
         self.model = base_model
@@ -18,10 +18,10 @@ class RMTBaseModel(nn.Module):
         
         self.tokenizer = AutoTokenizer.from_pretrained(kwargs['tokenizer_name_or_path'])
         self._extract_special_tokens(self.tokenizer)
-        # self._extend_word_embeddings(self.rmt_config.pre_seq_len, self.tokenizer)
-        self._init_mem_embeddings(self.rmt_config.pre_seq_len, tokenizer=self.tokenizer)
+        # self._extend_word_embeddings(self.config.pre_seq_len, self.tokenizer)
+        self._init_mem_embeddings(self.config.pre_seq_len, tokenizer=self.tokenizer)
         
-        if rmt_config.freeze_model:
+        if config.freeze_model:
             for name, param in self.model.named_parameters():
                 if name != 'model.shared.weight':
                     param.requires_grad = False
@@ -64,7 +64,7 @@ class RMTBaseModel(nn.Module):
     #     self.model.resize_token_embeddings(extended_vocab_size)
 
     #     self.memory_position = range(0, num_mem_tokens)
-    #     self.summary_position = range(num_mem_tokens + self.rmt_config.max_source_length, self.rmt_config.max_section_length)
+    #     self.summary_position = range(num_mem_tokens + self.config.max_source_length, self.config.max_section_length)
     #     self.model.embeddings = self.model.get_input_embeddings()
         
     def _set_memory(self, batch_size):
@@ -133,7 +133,7 @@ class RMTBaseModel(nn.Module):
             processed_attention_mask = []
             for sec_num, sec_attention_mask in enumerate(attention_mask):
                 sec_attention_mask = torch.cat([
-                    torch.ones(sec_attention_mask.shape[0], self.rmt_config.pre_seq_len, dtype=torch.long).to(self.model.device),
+                    torch.ones(sec_attention_mask.shape[0], self.config.pre_seq_len, dtype=torch.long).to(self.model.device),
                     sec_attention_mask,
                     self._get_postfix_attention_mask().to(self.model.device).expand(sec_attention_mask.shape[0], -1)],
                     # torch.ones(sec_attention_mask.shape[0], 1, dtype=torch.long).to(self.model.device)], 
@@ -147,10 +147,10 @@ class RMTBaseModel(nn.Module):
         return processed_input_ids, processed_attention_mask
     
     def _get_postfix_padding(self,):
-        return torch.ones(self.rmt_config.post_seq_len, dtype=torch.long) * self.pad_token_id
+        return torch.ones(self.config.post_seq_len, dtype=torch.long) * self.pad_token_id
         
     def _get_postfix_attention_mask(self,):
-        return torch.zeros(self.rmt_config.post_seq_len, dtype=torch.long)  
+        return torch.zeros(self.config.post_seq_len, dtype=torch.long)  
      
     def _process_generation_outputs(self, model_outputs):
         outputs = []
@@ -179,7 +179,7 @@ class RMTBaseModel(nn.Module):
                 if any([sk in key for sk in segment_keys]):
                     extracted[f'{key}_{seg_num}'] = value        
              
-        if self.rmt_config.sum_loss:       
+        if self.config.sum_loss:       
             losses = [out['loss'] for out in model_outputs]
             extracted['loss'] = torch.stack(losses).mean(dim=0)
             

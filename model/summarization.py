@@ -64,7 +64,7 @@ class BartForPubmed(RMTBaseModel):
         input_ids, attention_mask, labels = self._prepare_batch_inputs(input_ids, attention_mask, labels)
         
         for sec_num, sec_input_ids in enumerate(input_ids):
-            if self.rmt_config.bptt_depth != -1:
+            if self.config.bptt_depth != -1:
                 raise NotImplementedError
             
             sec_attention_mask = attention_mask[sec_num]
@@ -207,7 +207,7 @@ class BartForPubmed(RMTBaseModel):
         input_ids, attention_mask, labels = self._prepare_batch_inputs(sec_kwargs['input_ids'])
         
         for idx, sec_inputs in enumerate(input_ids):
-            if self.rmt_config.bptt_depth != -1:
+            if self.config.bptt_depth != -1:
                 raise NotImplementedError
             
             sec_kwargs['input_ids'] = sec_inputs
@@ -243,7 +243,7 @@ class BartRMTForPubmed(RMTBaseModel):
         return outputs
     
     def _pad_generation_output(self, tensor):
-        return F.pad(tensor, (0, self.rmt_config.post_seq_len-tensor.shape[1]), value=self.pad_token_id)
+        return F.pad(tensor, (0, self.config.post_seq_len-tensor.shape[1]), value=self.pad_token_id)
         
     def forward(
         self,
@@ -274,7 +274,7 @@ class BartRMTForPubmed(RMTBaseModel):
         
         base_model_outputs = []
         
-        if self.rmt_config.pre_seq_len != 0:
+        if self.config.pre_seq_len != 0:
             memory = self._set_memory(input_ids.shape[0])
         summary_embeds = None
         
@@ -282,7 +282,7 @@ class BartRMTForPubmed(RMTBaseModel):
         input_ids, attention_mask = self._init_prefix_postfix(input_ids, attention_mask)
         
         for sec_num, sec_input_ids in enumerate(input_ids):
-            if self.rmt_config.bptt_depth != -1:
+            if self.config.bptt_depth != -1:
                 raise NotImplementedError
             
             sec_attention_mask = attention_mask[sec_num]
@@ -295,7 +295,7 @@ class BartRMTForPubmed(RMTBaseModel):
                 kwargs=kwargs
             )
             
-            if self.rmt_config.pre_seq_len != 0:
+            if self.config.pre_seq_len != 0:
                 sec_kwargs['inputs_embeds'][:, self.memory_position] = memory
             
             if summary_embeds is not None:
@@ -304,10 +304,10 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_outputs = self.model(**sec_kwargs)
             base_model_outputs.append(sec_outputs)
             
-            if self.rmt_config.pre_seq_len != 0:
-                memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position]
+            if self.config.pre_seq_len != 0:
+                memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position].detach()
             
-            if self.rmt_config.post_seq_len != 0:
+            if self.config.post_seq_len != 0:
                 summary_embeds = sec_outputs.decoder_hidden_states[-1]
             
         model_outputs = self._process_outputs(base_model_outputs, output_attentions, output_hidden_states)
@@ -341,7 +341,7 @@ class BartRMTForPubmed(RMTBaseModel):
             'negative_prompt_ids': negative_prompt_ids,
             'negative_prompt_attention_mask': negative_prompt_attention_mask,
         }
-        # if self.rmt_config.post_seq_len != 0:
+        # if self.config.post_seq_len != 0:
         #     sec_kwargs['output_hidden_states'] = True
         #     sec_kwargs['return_dict_in_generate'] = True,
         
@@ -375,7 +375,7 @@ class BartRMTForPubmed(RMTBaseModel):
                        
         for sec_num, sec_inputs in enumerate(input_ids):
             
-            if self.rmt_config.bptt_depth != -1:
+            if self.config.bptt_depth != -1:
                 raise NotImplementedError        
 
             encoder_sec_kwargs = self._prepare_kwargs(
@@ -398,7 +398,7 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_kwargs['encoder_outputs'] = encoder_outputs
             
             sec_outputs = self.model.generate(**sec_kwargs)
-            if self.rmt_config.post_seq_len != 0:
+            if self.config.post_seq_len != 0:
                 summary_embeds = self._pad_generation_output(sec_outputs)
                 summary_embeds = self.model.embeddings(summary_embeds)
                 

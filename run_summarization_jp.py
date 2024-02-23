@@ -296,7 +296,7 @@ def main():
             if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
                 model = BartForPubmed(
                     base_model=model,
-                    rmt_config=rmt_config,
+                    config=rmt_config,
                     tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
                 )
             else:
@@ -344,7 +344,7 @@ def main():
         # load rmt model
         model = BartRMTForPubmed(
             base_model=base_model,
-            rmt_config=rmt_config,
+            config=rmt_config,
             tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         )
         
@@ -375,13 +375,13 @@ def main():
             model.model.resize_token_embeddings(len(tokenizer))
             
         # For Multi-lingual summarization, we need to set the decoder_start_token_id.
-        if model.rmt_config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
+        if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
             if isinstance(tokenizer, MBartTokenizer):
-                model.rmt_config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
+                model.config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
             else:
-                model.rmt_config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
+                model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
         
-        if model.rmt_config.decoder_start_token_id is None:
+        if model.config.decoder_start_token_id is None:
             raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
         
     # Only resize position embedding for baseline models Normal task
