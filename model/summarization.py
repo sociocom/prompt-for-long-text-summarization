@@ -408,5 +408,49 @@ class BartRMTForPubmed(RMTBaseModel):
         base_model_outputs = self._process_generation_outputs(base_model_outputs)
 
         return base_model_outputs        
+    
+    @torch.no_grad()
+    def inference(
+        self,
+        input_ids: torch.LongTensor = None,
+        attention_mask: Optional[torch.Tensor] = None,  
+        memory: Optional[torch.Tensor] = None,
+        max_new_tokens: Optional[int] = None,
+        do_sample: Optional[bool] = None,
+        **kwargs,
+    ):
+        
+        if memory is not None:
+            memory = memory
+        else:
+            memory = self._set_memory(1)
+
+        input_ids = torch.cat([
+            self.mem_token_ids.expand(input_ids.shape[0], -1), 
+            input_ids,],
+            dim=1,
+        )
+        attention_mask = torch.cat([
+            torch.ones_like(self.mem_token_ids).expand(input_ids.shape[0], -1),
+            attention_mask,
+        ], dim=1)
+        
+        inputs_embeds = self.model.embeddings(input_ids)
+        inputs_embeds[:, self.memory_position] = memory
+    
+        encoder_outputs = self.model.get_encoder()(inputs_embeds=inputs_embeds, attention_mask=attention_mask)
+        memory = encoder_outputs.last_hidden_state[:, self.memory_position].detach()
+        
+        generated_output = self.model.generate(
+            encoder_outputs=encoder_outputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=do_sample,
+        )
+        
+        return generated_output, memory
+        
+        
+
+        
         
             

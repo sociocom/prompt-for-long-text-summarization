@@ -34,7 +34,7 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=20
+pre_seq_len=150
 post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
@@ -73,7 +73,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 --freeze_model false \
---learning_rate 3e-6 \
+--learning_rate 1e-4 \
 --use_lora false \
 "$@" > $log_filename 2>&1 &
 
