@@ -34,7 +34,7 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=0
+pre_seq_len=32
 post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
@@ -45,15 +45,15 @@ python3 run_summarization_jp.py \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
---do_train false \
---do_eval false \
+--do_train true \
+--do_eval true \
 --do_predict true \
 --per_device_train_batch_size 2 \
 --per_device_eval_batch_size 2 \
 --num_train_epochs 10 \
 --max_train_samples 1000 \
---max_eval_samples 10 \
---max_predict_samples 10 \
+--max_eval_samples 1000 \
+--max_predict_samples 1000 \
 --max_source_length $max_source_length \
 --max_target_length 300 \
 --val_max_target_length 300 \
