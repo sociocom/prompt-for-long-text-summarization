@@ -305,7 +305,8 @@ class BartRMTForPubmed(RMTBaseModel):
             base_model_outputs.append(sec_outputs)
             
             if self.config.pre_seq_len != 0:
-                memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position].detach()
+                # memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position].detach()
+                memory = sec_outputs.encoder_last_hidden_state[:, self.memory_position]
             
             if self.config.post_seq_len != 0:
                 summary_embeds = sec_outputs.decoder_hidden_states[-1]
@@ -393,7 +394,7 @@ class BartRMTForPubmed(RMTBaseModel):
             encoder_sec_kwargs['attention_mask'] = sec_attention_mask
 
             encoder_outputs = self.model.get_encoder()(**encoder_sec_kwargs)
-            memory = encoder_outputs.last_hidden_state[:, self.memory_position].detach()
+            memory = encoder_outputs.last_hidden_state[:, self.memory_position]
             
             sec_kwargs['input_ids'] = None
             sec_kwargs['encoder_outputs'] = encoder_outputs

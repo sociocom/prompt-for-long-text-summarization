@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from transformers import AutoTokenizer, PreTrainedModel
 from peft import LoraConfig, TaskType, get_peft_model
 
-class RMTBaseModel(PreTrainedModel):
+class RMTBaseModel(nn.Module):
     
     def __init__(self, base_model, config, **kwargs):
         super().__init__()

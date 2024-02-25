@@ -266,7 +266,7 @@ def main():
             if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
                 model = BartForPubmed(
                     base_model=model,
-                    rmt_config=rmt_config,
+                    config=rmt_config,
                     tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
                 )
             else:
@@ -314,7 +314,7 @@ def main():
         if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
             model = BartRMTForPubmed(
                 base_model=base_model,
-                rmt_config=rmt_config,
+                config=rmt_config,
                 tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
             )
         else:
@@ -365,13 +365,13 @@ def main():
             model.model.resize_token_embeddings(len(tokenizer))
             
         # For Multi-lingual summarization, we need to set the decoder_start_token_id.
-        if model.rmt_config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
+        if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
             if isinstance(tokenizer, MBartTokenizer):
-                model.rmt_config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
+                model.config.decoder_start_token_id = tokenizer.lang_code_to_id[data_args.lang]
             else:
-                model.rmt_config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
+                model.config.decoder_start_token_id = tokenizer.convert_tokens_to_ids(data_args.lang)
         
-        if model.rmt_config.decoder_start_token_id is None:
+        if model.config.decoder_start_token_id is None:
             raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
         
     # Only resize position embedding for baseline models Normal task
@@ -632,6 +632,53 @@ def main():
         print(f'{training_args.rouge_type=}')
         if training_args.rouge_type == "Accumulation":
             def compute_metrics(eval_preds):
+            #     # preds is already combined by sections, but labels is still a list of list
+            #     # Note: both preds and labels are list instead of tensor
+            #     # labels: batch_size, section, seq_len
+            #     preds, labels = eval_preds
+            #     # print(f'{labels=}')
+            #     # print(f'shape_0: {len(labels)}')
+            #     # print(f'shape_1: {len(labels[0])}')
+            #     # print(f'shape_2: {len(labels[0][0])}')
+                
+            #     # print(f'{preds=}')
+            #     # print(f'shape_0: {len(preds)}')
+            #     # print(f'shape_1: {len(preds[0])}')
+                
+            #     results = []
+            #     for sections in labels:
+            #         new_list = []
+            #         for section in sections:
+            #             new_list.extend(section)
+            #         results.append(new_list)
+            #     # print(f'{results=}')
+            #     labels = np.array(results)
+                
+            #     # print(f'before: {labels=}')
+            #     # print(f'before: {preds=}')
+                
+            #     if isinstance(preds, tuple): 
+            #         preds = preds[0]
+                    
+            #     # Replace -100s used for padding as we can't decode them
+            #     preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            #     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                
+            #     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            #     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            #     # Some simple post-processing
+            #     decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+            #     print(f'decoded_preds: {decoded_preds}')
+            #     print(f'decoded_labels: {decoded_labels}')
+                
+            #     result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+            #     result = {k: round(v * 100, 4) for k, v in result.items()}
+            #     prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            #     result["gen_len"] = np.mean(prediction_lens)
+            #     return result       
+            
+            # def compute_metrics(eval_preds):
                 # preds is already combined by sections, but labels is still a list of list
                 # Note: both preds and labels are list instead of tensor
                 # labels: batch_size, section, seq_len
@@ -644,39 +691,52 @@ def main():
                 # print(f'{preds=}')
                 # print(f'shape_0: {len(preds)}')
                 # print(f'shape_1: {len(preds[0])}')
-                
                 results = []
                 for sections in labels:
                     new_list = []
                     for section in sections:
                         new_list.extend(section)
                     results.append(new_list)
-                # print(f'{results=}')
                 labels = np.array(results)
                 
-                # print(f'before: {labels=}')
-                # print(f'before: {preds=}')
-                
-                if isinstance(preds, tuple): 
-                    preds = preds[0]
+                all_results = []
+                for index, (pred, label) in enumerate(zip(preds, labels)):
                     
-                # Replace -100s used for padding as we can't decode them
-                preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
-                decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                # print(f'{results=}')
+                # labels = np.array(results)
                 
-                labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-                decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+                    print(f'before: {label=}')
+                    print(f'before: {pred=}')
+                
+                    if isinstance(preds, tuple): 
+                        preds = preds[0]
+                        
+                    # Replace -100s used for padding as we can't decode them
+                    pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
+                    decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
+                    print(f'after: {pred=}')
+                    
+                    label = np.where(labels != -100, label, tokenizer.pad_token_id)
+                    decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
 
-                # Some simple post-processing
-                decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-                # print(f'decoded_preds: {decoded_preds}')
-                # print(f'decoded_labels: {decoded_labels}')
-                
-                result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-                result = {k: round(v * 100, 4) for k, v in result.items()}
-                prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-                result["gen_len"] = np.mean(prediction_lens)
-                return result            
+                    # Some simple post-processing
+                    decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
+                    decoded_pred = [" ".join(decoded_pred)]
+                    print(f'decoded_pred: {decoded_pred}')
+                    print(f'decoded_label: {decoded_label}')
+                    
+                    result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
+                    result = {k: round(v * 100, 4) for k, v in result.items()}
+                    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+                    result["gen_len"] = np.mean(prediction_lens)
+                    
+                    print('-'*50)
+                    print(f'print {index} segment result:')
+                    print(result)
+                    print('-'*50)
+                    
+                return result
+                        
         elif training_args.rouge_type == "Final":
             raise NotImplementedError
         

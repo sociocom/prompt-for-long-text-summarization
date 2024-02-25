@@ -146,6 +146,14 @@ PubMed Incremental
 |      RMT + Lora<br />(q v)      |     20     |      0      |                  |                  | 48.50 | 20.02 | 46.99 |            | 5e-5 |    |
 |           RMT w/o Lora           |     20     |              |                  |                  |        |        |        |            |      |    |
 
+Tobyoki
+
+| model               | pre_seq | rouge1 | rouge2 | rougeL | lr   |
+| ------------------- | ------- | ------ | ------ | ------ | ---- |
+| baseline bart-large | 20      |        |        |        |      |
+|                     | 20      | 14.21  | 2.12   | 12.56  | 3e-6 |
+|                     |         |        |        |        |      |
+
 ## Model Architecture
 
 ## TODO

@@ -2,9 +2,9 @@
 
 # set time zone to Japan/Tokyo
 export TZ=Asia/Tokyo
-export MODEL_NAME=ku-nlp/bart-base-japanese
+export MODEL_NAME=ku-nlp/bart-large-japanese
 export DATASET_NAME=tobyoki
-export MODEL_DIR_NAME=bart-base-japanese
+export MODEL_DIR_NAME=bart-large-japanese
 export MODEL_TYPE=BaseModelWithRMT
 checkpoint_dir=saved/$DATASET_NAME/$MODEL_DIR_NAME/$MODEL_TYPE/$WANDB_NAME
 
@@ -34,7 +34,7 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=150
+pre_seq_len=20
 post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
@@ -46,12 +46,12 @@ CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
 --output_dir "$checkpoint_dir" \
 --overwrite_output_dir \
 --push_to_hub \
---push_to_hub_model_id "bart-base-japanese-RMT"-$DATASET_NAME-$pre_seq_len \
+--push_to_hub_model_id "bart-large-japanese-RMT"-$DATASET_NAME-$pre_seq_len \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 1 \
---per_device_eval_batch_size 1 \
+--per_device_train_batch_size 2 \
+--per_device_eval_batch_size 2 \
 --num_train_epochs 10 \
 --max_train_samples 100 \
 --max_eval_samples 100 \
@@ -73,7 +73,7 @@ CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 --freeze_model false \
---learning_rate 1e-4 \
+--learning_rate 5e-5 \
 --use_lora false \
 "$@" > $log_filename 2>&1 &
 
