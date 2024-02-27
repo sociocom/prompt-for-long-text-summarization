@@ -652,7 +652,6 @@ def main():
                     
                     from nltk.tokenize import word_tokenize
                     
-                    
                     result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True, tokenizer=word_tokenize)
                     result = {k: round(v * 100, 4) for k, v in result.items()}
                     predicton_lens = [np.count_nonzero(p != tokenizer.pad_token_id) for p in pred]
@@ -662,7 +661,6 @@ def main():
                     print(result)
                     print(f'-'*50)
                     print(f'\n')
-                    raise NotImplementedError
                     
                 # calculate rouge for the whole document
                 preds = preds.reshape(-1, preds.shape[-1])
