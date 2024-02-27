@@ -650,7 +650,10 @@ def main():
                     print(f'{decoded_pred=}')
                     print(f'{decoded_label=}')
                     
-                    result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
+                    from nltk.tokenize import word_tokenize
+                    
+                    
+                    result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True, tokenizer=word_tokenize)
                     result = {k: round(v * 100, 4) for k, v in result.items()}
                     predicton_lens = [np.count_nonzero(p != tokenizer.pad_token_id) for p in pred]
                     result["gen_len"] = np.mean(predicton_lens)

@@ -20,6 +20,10 @@ project/
 |-- arguments.py                  -> training_args
 |-- requirements.txt  
 ```
+## How to use
+### Important:
+* due to evaluate.rouge don't support other language 
+* need to add a tokenizer=nltk.word_tokenize
 
 ## Dataset Statistic
 
