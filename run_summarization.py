@@ -662,7 +662,7 @@ def main():
                     
                     result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
                     result = {k: round(v * 100, 4) for k, v in result.items()}
-                    predicton_lens = np.count_nonzero(pred != tokenizer.pad_token_id)
+                    predicton_lens = [np.count_nonzero(p != tokenizer.pad_token_id) for p in pred]
                     result["gen_len"] = np.mean(predicton_lens)
                     print(f'-'*50)
                     print(f'result for {index+1} segment:')

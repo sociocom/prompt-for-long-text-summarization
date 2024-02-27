@@ -244,7 +244,7 @@ class BartRMTForPubmed(RMTBaseModel):
 
     def _process_generation_outputs(self, model_outputs):
         outputs = []
-        print(f'length of model_outputs: {len(model_outputs)}')
+        # print(f'length of model_outputs: {len(model_outputs)}')
         
         for batch_idx in range(len(model_outputs[0])):
             batch_outputs = []
@@ -252,8 +252,8 @@ class BartRMTForPubmed(RMTBaseModel):
                 batch_outputs.append(sample[batch_idx])
             
             # Add print statements to debug
-            print(f"Batch Index: {batch_idx}")
-            print(f"Sizes of individual tensors in batch_outputs: {[o.size() for o in batch_outputs]}")
+            # print(f"Batch Index: {batch_idx}")
+            # print(f"Sizes of individual tensors in batch_outputs: {[o.size() for o in batch_outputs]}")
 
             max_size = self.rmt_config.max_target_length
             batch_outputs_padded = [torch.nn.functional.pad(o, (0, max_size - o.size(0)), value=-100) for o in batch_outputs]
