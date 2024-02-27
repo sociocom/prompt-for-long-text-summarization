@@ -639,16 +639,16 @@ def main():
                     
                     pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
                     decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
-                    print(f'{decoded_pred=}')
+                    # print(f'{decoded_pred=}')
                     
                     label = np.where(label != -100, label, tokenizer.pad_token_id)
                     decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
-                    print(f'{decoded_label=}')
+                    # print(f'{decoded_label=}')
                     
                     # Some simple post-processing
                     decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
-                    print(f'{decoded_pred=}')
-                    print(f'{decoded_label=}')
+                    # print(f'{decoded_pred=}')
+                    # print(f'{decoded_label=}')
                     
                     from nltk.tokenize import word_tokenize
                     
