@@ -9,6 +9,7 @@ nltk
 wordninja
 spacy
 peft
+rouge_score
 
 # required for hyper search
 optuna
