@@ -199,7 +199,7 @@ def main():
             data_args.dataset_name,
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            # token=model_args.token,
         )
     else:
         data_files = {}
@@ -216,7 +216,7 @@ def main():
             extension,
             data_files=data_files,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            # token=model_args.token,
         )
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.  
@@ -230,7 +230,7 @@ def main():
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     tokenizer = AutoTokenizer.from_pretrained(
@@ -238,7 +238,7 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     if training_args.model_type == "BaseModel":
@@ -248,7 +248,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         if training_args.task_type == "Segment":
@@ -279,7 +279,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )
         peft_config = PrefixTuningConfig(
@@ -297,7 +297,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         # prepare rmt parameters
@@ -333,7 +333,7 @@ def main():
             config=prompt_bart_config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )
     elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
