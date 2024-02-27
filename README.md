@@ -104,6 +104,16 @@ PubMed Incremental
 |    RMT    |     200     |     300     |        512        |        300        |        |        |        |   2 * 3   | 5e-5 |  |
 |    RMT    |     212     |     300     |        512        |        300        | 45.73 | 17.81 | 44.51 |   2 * 3   | 5e-5 |  |
 
+
+### Result for Each Segment of PubMed
+
+| Model                    | Seg1 | Seg2 | Seg3 | Seg4 |
+| ------------------------ | ---- | ---- | ---- | ---- |
+| Baseline BART            |      |      |      |      |
+| RMT-trained on 1 segment |      |      |      |      |
+
+
+
 **NLP_JP_CORPUS_INCREMENTAL ( please checkout to branch RMT to find new result )**
 
 |   Model   | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr   |
