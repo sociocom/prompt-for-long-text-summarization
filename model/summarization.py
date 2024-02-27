@@ -235,11 +235,14 @@ class BartRMTForPubmed(RMTBaseModel):
             batch_outputs = []
             for sample in model_outputs:
                 batch_outputs.append(sample[batch_idx])
-            batch_outputs = torch.concat(batch_outputs)
+            # batch_outputs = torch.concat(batch_outputs)
+            batch_outputs = torch.stack([o for o in batch_outputs])
+            # print(f'{batch_outputs=}')
             outputs.append(batch_outputs)
             
         outputs = torch.stack([o for o in outputs])
-            
+        # print(f'{outputs.shape=}')
+
         return outputs
     
     def _pad_generation_output(self, tensor):

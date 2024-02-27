@@ -632,51 +632,149 @@ def main():
         print(f'{training_args.rouge_type=}')
         if training_args.rouge_type == "Accumulation":
             def compute_metrics(eval_preds):
-            #     # preds is already combined by sections, but labels is still a list of list
-            #     # Note: both preds and labels are list instead of tensor
-            #     # labels: batch_size, section, seq_len
-            #     preds, labels = eval_preds
-            #     # print(f'{labels=}')
-            #     # print(f'shape_0: {len(labels)}')
-            #     # print(f'shape_1: {len(labels[0])}')
-            #     # print(f'shape_2: {len(labels[0][0])}')
+                # format: [batch_size, section, seq_len]
+                preds, labels = eval_preds
                 
-            #     # print(f'{preds=}')
-            #     # print(f'shape_0: {len(preds)}')
-            #     # print(f'shape_1: {len(preds[0])}')
-                
-            #     results = []
-            #     for sections in labels:
-            #         new_list = []
-            #         for section in sections:
-            #             new_list.extend(section)
-            #         results.append(new_list)
-            #     # print(f'{results=}')
-            #     labels = np.array(results)
-                
-            #     # print(f'before: {labels=}')
-            #     # print(f'before: {preds=}')
-                
-            #     if isinstance(preds, tuple): 
-            #         preds = preds[0]
+                # calculate rouge for each segment
+                for index in range(preds.shape[1]):
+                    pred = preds[:, index, :]
+                    label = labels[:, index, :]
                     
-            #     # Replace -100s used for padding as we can't decode them
-            #     preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
-            #     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                    pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
+                    decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
+                    
+                    label = np.where(label != -100, label, tokenizer.pad_token_id)
+                    decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
+                    
+                    # Some simple post-processing
+                    decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
+                    
+                    result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
+                    result = {k: round(v * 100, 4) for k, v in result.items()}
+                    predicton_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+                    result["gen_len"] = np.mean(predicton_lens)
+                    print(f'-'*50)
+                    print(f'result for {index+1} segment:')
+                    print(result)
+                    print(f'-'*50)
+                    print(f'\n')
+                    
+                # calculate rouge for the whole document
+                preds = preds.reshape(-1, preds.shape[-1])
+                labels = labels.reshape(-1, labels.shape[-1])
                 
-            #     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-            #     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+                if isinstance(preds, tuple): 
+                    preds = preds[0]
+                
+                # Replace -100s used for padding as we can't decode them
+                preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+                decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                
+                labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+                decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-            #     # Some simple post-processing
-            #     decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-            #     print(f'decoded_preds: {decoded_preds}')
-            #     print(f'decoded_labels: {decoded_labels}')
+                # Some simple post-processing
+                decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+                # print(f'decoded_preds: {decoded_preds}')
+                # print(f'decoded_labels: {decoded_labels}')
                 
-            #     result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
-            #     result = {k: round(v * 100, 4) for k, v in result.items()}
-            #     prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
-            #     result["gen_len"] = np.mean(prediction_lens)
-            #     return result       
+                result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+                result = {k: round(v * 100, 4) for k, v in result.items()}
+                prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+                result["gen_len"] = np.mean(prediction_lens)
+                
+                return result
+                
+            # def compute_metrics(eval_preds):
+                # preds is already combined by sections, but labels is still a list of list
+                # Note: both preds and labels are list instead of tensor
+                # labels: batch_size, section, seq_len
+                preds, labels = eval_preds
+                # print(f'{labels=}')
+                # print(f'shape_0: {len(labels)}')
+                # print(f'shape_1: {len(labels[0])}')
+                # print(f'shape_2: {len(labels[0][0])}')
+                
+                # print(f'{preds=}')
+                # print(f'shape_0: {len(preds)}')
+                # print(f'shape_1: {len(preds[0])}')
+                calculate_all_segments = False
+                if calculate_all_segments:
+                    results = []
+                    for sections in labels:
+                        new_list = []
+                        for section in sections:
+                            new_list.extend(section)
+                        results.append(new_list)
+                    # print(f'{results=}')
+                    labels = np.array(results)
+                
+                    print(f'{preds.shape=}')
+                    print(f'{labels.shape=}')
+                
+                    # raise NotImplementedError
+                    if isinstance(preds, tuple): 
+                        preds = preds[0]
+                
+                    # Replace -100s used for padding as we can't decode them
+                    preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+                    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                    
+                    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+                    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+                    # Some simple post-processing
+                    decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+                    print(f'decoded_preds: {decoded_preds}')
+                    print(f'decoded_labels: {decoded_labels}')
+                    
+                    result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+                    result = {k: round(v * 100, 4) for k, v in result.items()}
+                    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+                    result["gen_len"] = np.mean(prediction_lens)
+                    
+                else: 
+                    for index in range(preds.shape[1]):
+                        pred = preds[:, index, :]
+                        label = labels[:, index, :]
+                        
+                        pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
+                        decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
+                        
+                        label = np.where(label != -100, label, tokenizer.pad_token_id)
+                        decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
+                        
+                        # Some simple post-processing
+                        decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
+                        
+                        result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
+                        result = {k: round(v * 100, 4) for k, v in result.items()}
+                        predicton_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+                        result["gen_len"] = np.mean(predicton_lens)
+                        print(f'-'*50)
+                        print(f'result for {index+1} segment:')
+                        print(result)
+                        print(f'-'*50)
+                        print(f'\n')
+                        
+                    # Replace -100s used for padding as we can't decode them
+                    preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+                    decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                    
+                    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+                    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+                    # Some simple post-processing
+                    decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+                    print(f'decoded_preds: {decoded_preds}')
+                    print(f'decoded_labels: {decoded_labels}')
+                    
+                    result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+                    result = {k: round(v * 100, 4) for k, v in result.items()}
+                    prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+                    result["gen_len"] = np.mean(prediction_lens)                    
+                    
+                return result       
             
             # def compute_metrics(eval_preds):
                 # preds is already combined by sections, but labels is still a list of list
@@ -830,6 +928,7 @@ def main():
             if training_args.predict_with_generate:
                 predictions = predict_results.predictions
                 predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
+                predictions = predictions.reshape(-1, predictions.shape[-1])
                 predictions = tokenizer.batch_decode(
                     predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )

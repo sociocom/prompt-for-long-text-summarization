@@ -104,7 +104,7 @@ PubMed Incremental
 |    RMT    |     200     |     300     |        512        |        300        |        |        |        |   2 * 3   | 5e-5 |  |
 |    RMT    |     212     |     300     |        512        |        300        | 45.73 | 17.81 | 44.51 |   2 * 3   | 5e-5 |  |
 
-**NLP_JP_CORPUS_INCREMENTAL**
+**NLP_JP_CORPUS_INCREMENTAL ( please checkout to branch RMT to find new result )**
 
 |   Model   | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr   |
 | :-------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | ---- |
@@ -158,10 +158,5 @@ Tobyoki
 
 ## TODO
 
-1. 看一下数据集的结构 ｜ 包括JST数据集
-   1. 在JST数据集上进行测试
-   2. 对文本数据集进行一个处理
-      1. 文本本身需要进行分割：或许根据keyword进行一个rule-based的划分
-      2. summary根据DANCER的方法进行一个相似度匹配来进行划分
-2. 研究一下BART-japanese怎么用
-3. 重新写一个新的run_summarization_japanese
+1. 首先在原始数据集（没有删除-的数据集）上进行first-10的试验，验证也在first-10片段，最后选一个最好的eval模型，在10到n的片段长度的测试集合上进行训练
+2. 删除-后的修改后的数据集，在first-n上进行试验，然后验证也在first-n上进行验证，最后取一个最好的eval模型在所有片段长度上进行一下测试
