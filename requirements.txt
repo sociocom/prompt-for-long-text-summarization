@@ -8,6 +8,7 @@ evaluate
 nltk
 wordninja
 spacy
+peft
 
 # required for hyper search
 optuna
