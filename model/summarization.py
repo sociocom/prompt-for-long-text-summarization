@@ -228,18 +228,40 @@ class BartRMTForPubmed(RMTBaseModel):
         self.generation_config = self.model.generation_config
         # self.generation_config.max_length = self.generation_config.max_length * 4    
         
-    def _process_generation_outputs(self, model_outputs):
+    # def _process_generation_outputs(self, model_outputs):
         
+    #     outputs = []
+    #     for batch_idx in range(len(model_outputs[0])):
+    #         batch_outputs = []
+    #         for sample in model_outputs:
+    #             batch_outputs.append(sample[batch_idx])
+    #         batch_outputs = torch.concat(batch_outputs)
+    #         outputs.append(batch_outputs)
+            
+    #     outputs = torch.stack([o for o in outputs])
+            
+    #     return outputs
+
+    def _process_generation_outputs(self, model_outputs):
         outputs = []
+        print(f'length of model_outputs: {len(model_outputs)}')
+        
         for batch_idx in range(len(model_outputs[0])):
             batch_outputs = []
             for sample in model_outputs:
                 batch_outputs.append(sample[batch_idx])
-            batch_outputs = torch.concat(batch_outputs)
+            
+            # Add print statements to debug
+            print(f"Batch Index: {batch_idx}")
+            print(f"Sizes of individual tensors in batch_outputs: {[o.size() for o in batch_outputs]}")
+
+            batch_outputs = torch.stack([o for o in batch_outputs])
             outputs.append(batch_outputs)
-            
+        
+        # Add print statement to debug
+        print(f"Sizes of individual tensors in outputs: {[o.size() for o in outputs]}")
+        
         outputs = torch.stack([o for o in outputs])
-            
         return outputs
     
     def _pad_generation_output(self, tensor):
