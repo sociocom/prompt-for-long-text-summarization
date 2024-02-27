@@ -262,7 +262,7 @@ class BartRMTForPubmed(RMTBaseModel):
             outputs.append(batch_outputs_padded)
         
         # Add print statement to debug
-        print(f"Sizes of individual tensors in outputs: {[o.size() for o in outputs]}")
+        # print(f"Sizes of individual tensors in outputs: {[o.size() for o in outputs]}")
         
         outputs = torch.stack([o for o in outputs])
         return outputs
