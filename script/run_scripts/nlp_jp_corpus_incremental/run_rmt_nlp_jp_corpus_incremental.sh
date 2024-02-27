@@ -34,13 +34,13 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=256
+pre_seq_len=0
 post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
 
-CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
+CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
@@ -48,8 +48,8 @@ CUDA_VISIBLE_DEVICES=1 python3 run_summarization_jp.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 8 \
---per_device_eval_batch_size 8 \
+--per_device_train_batch_size 6 \
+--per_device_eval_batch_size 6 \
 --num_train_epochs 10 \
 --max_train_samples 1000 \
 --max_eval_samples 1000 \
