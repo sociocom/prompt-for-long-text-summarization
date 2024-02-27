@@ -259,6 +259,7 @@ def main():
                 freeze_model=training_args.freeze_model,
                 max_section_length=data_args.max_source_length,
                 max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+                max_target_length=data_args.max_target_length,
                 **config.to_dict()
             )
             data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
@@ -271,24 +272,6 @@ def main():
                 )
             else:
                 raise NotImplementedError
-    # NOTE: it seems that a bug exsits when using trainer with prefix tuning
-    elif training_args.model_type == "BaseModelWithPrefixTuning":
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            # token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-        peft_config = PrefixTuningConfig(
-            task_type=TaskType.SEQ_2_SEQ_LM,
-            inference_mode=False,
-            num_virtual_tokens=model_args.pre_seq_len,            
-        )
-        model = get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
     elif training_args.model_type == "BaseModelWithRMT":
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -307,6 +290,7 @@ def main():
             freeze_model=training_args.freeze_model,
             max_section_length=data_args.max_source_length,
             max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+            max_target_length=data_args.max_target_length,
             **config.to_dict()
         )
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
@@ -319,26 +303,6 @@ def main():
             )
         else:
             raise NotImplementedError
-    elif training_args.model_type == "BaseModelWithPrefixProp":
-        # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
-        data_args.max_source_length = data_args.max_source_length
-        prompt_bart_config = RMTBartConfig(
-            pre_seq_len=model_args.pre_seq_len,
-            # post_seq_len=model_args.post_seq_len,
-            **config.to_dict()
-        )
-        model = BartPrefixPropForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=prompt_bart_config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            # token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-    elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
-        data_args.max_source_length = data_args.max_source_length
-        raise NotImplementedError
     else:
         raise NotImplementedError
     print(model)

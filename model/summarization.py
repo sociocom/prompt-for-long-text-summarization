@@ -255,8 +255,11 @@ class BartRMTForPubmed(RMTBaseModel):
             print(f"Batch Index: {batch_idx}")
             print(f"Sizes of individual tensors in batch_outputs: {[o.size() for o in batch_outputs]}")
 
-            batch_outputs = torch.stack([o for o in batch_outputs])
-            outputs.append(batch_outputs)
+            max_size = self.rmt_config.max_target_length
+            batch_outputs_padded = [torch.nn.functional.pad(o, (0, max_size - o.size(0)), value=-100) for o in batch_outputs]
+            
+            batch_outputs_padded = torch.stack([o for o in batch_outputs_padded])
+            outputs.append(batch_outputs_padded)
         
         # Add print statement to debug
         print(f"Sizes of individual tensors in outputs: {[o.size() for o in outputs]}")
