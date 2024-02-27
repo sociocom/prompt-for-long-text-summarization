@@ -10,6 +10,7 @@ wordninja
 spacy
 peft
 rouge_score
+ja_sentence_segmenter
 
 # required for hyper search
 optuna

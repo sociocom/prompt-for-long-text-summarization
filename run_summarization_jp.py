@@ -631,7 +631,7 @@ def main():
             def compute_metrics(eval_preds):
                 # format: [batch_size, section, seq_len]
                 preds, labels = eval_preds
-                
+            
                 # calculate rouge for each segment
                 for index in range(preds.shape[1]):
                     pred = preds[:, index, :]
@@ -639,12 +639,16 @@ def main():
                     
                     pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
                     decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
+                    print(f'{decoded_pred=}')
                     
                     label = np.where(label != -100, label, tokenizer.pad_token_id)
                     decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
+                    print(f'{decoded_label=}')
                     
                     # Some simple post-processing
                     decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
+                    print(f'{decoded_pred=}')
+                    print(f'{decoded_label=}')
                     
                     result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
                     result = {k: round(v * 100, 4) for k, v in result.items()}
@@ -655,6 +659,7 @@ def main():
                     print(result)
                     print(f'-'*50)
                     print(f'\n')
+                    raise NotImplementedError
                     
                 # calculate rouge for the whole document
                 preds = preds.reshape(-1, preds.shape[-1])
