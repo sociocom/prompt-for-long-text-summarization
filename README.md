@@ -75,6 +75,18 @@ project/
 
 ### Result: Tobyoki
 
+### Result: Memory Usage
+* GPU Memory Usage
+| :--: | :--: | :--: |
+| Model | Seq_len | Mem |
+| Baseline BART | 512 |    |
+| Baseline BART | 1024 |    |
+| Baseline BART | 2048 |    |
+| Baseline BART | 4096 |    |
+| RMT-Summ | 512 |    |
+| RMT-Summ | 1024 |    |
+| RMT-Summ | 2048 |    |
+| RMT-Summ | 4096 |    |
 
 
 ## Model Architecture
