@@ -788,6 +788,7 @@ def main():
             if training_args.predict_with_generate:
                 predictions = predict_results.predictions
                 predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
+                predictions = predictions.reshape(-1, predictions.shape[-1])
                 predictions = tokenizer.batch_decode(
                     predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )
