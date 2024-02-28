@@ -269,7 +269,9 @@ class DataTrainingArguments:
     source_prefix: Optional[str] = field(
         default="", metadata={"help": "A prefix to add before every source text (useful for T5 models)."}
     )
-
+    max_n_segments: Optional[int] = field(
+        default=4, metadata={"help": "Define the max segments of training data"}
+    )
     forced_bos_token: Optional[str] = field(
         default=None,
         metadata={

@@ -218,6 +218,29 @@ def main():
             cache_dir=model_args.cache_dir,
             # token=model_args.token,
         )
+
+    if data_args.max_n_segments <= len(raw_datasets['train']['sections'][0]):
+        def truncate_max_n_segments(example):
+            example['sections'] = example['sections'][:data_args.max_n_segments]
+            example['abstract_text'] = example['abstract_text'][:data_args.max_n_segments]
+            return example
+        
+        for split in raw_datasets.keys():
+            raw_datasets[split] = raw_datasets[split].map(truncate_max_n_segments)
+            
+    else:
+        # do dummy process to extend max input length
+        def extend_max_n_segments(example):
+            num_segments_to_copy = data_args.max_n_segments - len(example['sections'][0])
+            example['sections'] += raw_datasets['train']['sections'][0][:num_segments_to_copy]
+            example['abstract_text'] += raw_datasets['train']['abstract_text'][0][:num_segments_to_copy]
+            return example
+
+        for split in raw_datasets.keys():
+            raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
+        
+
+    
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.  
     
