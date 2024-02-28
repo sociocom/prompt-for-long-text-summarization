@@ -83,7 +83,7 @@ project/
 | Baseline BART | 1024 |    |
 | Baseline BART | 2048 |    |
 | Baseline BART | 4096 |    |
-| RMT-Summ | 512 |    |
+| RMT-Summ | 512 | 5939 |
 | RMT-Summ | 1024 |    |
 | RMT-Summ | 2048 | 19180 |
 | RMT-Summ | 4096 |    |
@@ -95,7 +95,7 @@ project/
 | Baseline BART | 1024 |    |
 | Baseline BART | 2048 |    |
 | Baseline BART | 4096 |    |
-| RMT-Summ | 512 |    |
+| RMT-Summ | 512 | 805 |
 | RMT-Summ | 1024 |    |
 | RMT-Summ | 2048 | 2151 |
 | RMT-Summ | 4096 |    |
@@ -124,4 +124,3 @@ project/
 | RMT-Summ | 2048 | 0.041 |
 | RMT-Summ | 4096 |    |
 
-## TODO

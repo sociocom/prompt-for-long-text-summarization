@@ -51,9 +51,9 @@ CUDA_VISIBLE_DEVICES=1 nohup python3 run_summarization.py \
 --per_device_train_batch_size 6 \
 --per_device_eval_batch_size 6 \
 --num_train_epochs 1 \
---max_train_samples 100 \
---max_eval_samples 20 \
---max_predict_samples 20 \
+--max_train_samples 100000 \
+--max_eval_samples 200000 \
+--max_predict_samples 20000 \
 --max_source_length $max_source_length \
 --max_n_segments 1 \
 --max_target_length 300 \
