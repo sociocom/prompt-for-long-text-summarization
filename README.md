@@ -41,8 +41,8 @@ project/
     | eval |  1399  |          2752          |           300           |
     | test |  1431  |          2732          |           303           |
 
-
-### Result: PubMed-Incremental
+## Result:
+### PubMed-Incremental
 
 |   Model   | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size |  lr  |  |
 | :-------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | :--: | :-: |
@@ -58,7 +58,7 @@ project/
 |    RMT    |     256     |      0      |        512        |        300        | 50.25 | 20.03 | 48.92 |   2 * 3   | 5e-5 |  |
 
 
-### Result: NLP_JP_CORPUS
+### NLP_JP_CORPUS
 
 |   Model   | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr   |
 | :-------: | :---------: | :----------: | :---------------: | :---------------: | :----: | :----: | :----: | :--------: | ---- |
@@ -73,12 +73,11 @@ project/
 |    RMT    |     256     |      0      |        512        |        300        | 50.82 | 19.53 | 48.98 |   1 * 3   | 3e-6 |
 
 
-### Result: Tobyoki
+### Tobyoki
 
-### Result: Memory Usage
-* GPU Memory Usage
-| :--: | :--: | :--: |
+### Memory Usage
 | Model | Seq_len | Mem |
+| :--: | :--: | :--: |
 | Baseline BART | 512 |    |
 | Baseline BART | 1024 |    |
 | Baseline BART | 2048 |    |
@@ -88,9 +87,28 @@ project/
 | RMT-Summ | 2048 |    |
 | RMT-Summ | 4096 |    |
 
+### Train Iteration Time
+| Model | Seq_len | Iter Time |
+| :--: | :--: | :--: |
+| Baseline BART | 512 |    |
+| Baseline BART | 1024 |    |
+| Baseline BART | 2048 |    |
+| Baseline BART | 4096 |    |
+| RMT-Summ | 512 |    |
+| RMT-Summ | 1024 |    |
+| RMT-Summ | 2048 |    |
+| RMT-Summ | 4096 |    |
 
-## Model Architecture
-
-![Alt text](image.png)
+### Eval Iteration Time 
+| Model | Seq_len | Iter Time |
+| :--: | :--: | :--: |
+| Baseline BART | 512 |    |
+| Baseline BART | 1024 |    |
+| Baseline BART | 2048 |    |
+| Baseline BART | 4096 |    |
+| RMT-Summ | 512 |    |
+| RMT-Summ | 1024 |    |
+| RMT-Summ | 2048 |    |
+| RMT-Summ | 4096 |    |
 
 ## TODO
