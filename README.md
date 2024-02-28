@@ -23,17 +23,18 @@ project/
 ## How to use
 ### Important:
 * due to evaluate.rouge don't support other language 
-* need to add a tokenizer=nltk.word_tokenize
+  * need to add a tokenizer=nltk.word_tokenize
 
 ## Dataset Statistic
 
 ### **Pubmed statistic:**
 
-* | split | samples |
-  | ----- | ------- |
-  | train | 119924  |
-  | eval  | 6633    |
-  | test  | 6658    |
+* Before processing
+  * | split | samples |
+    | ----- | ------- |
+    | train | 119924  |
+    | eval  | 6633    |
+    | test  | 6658    |
 * after processing
   * | split | samples | avg_token_size_section | avg_token_size_abstract |
     | :---: | :-----: | :--------------------: | :---------------------: |
@@ -75,7 +76,7 @@ project/
 
 ### Tobyoki
 
-### Memory Usage
+### Train Memory Usage
 | Model | Seq_len | Mem |
 | :--: | :--: | :--: |
 | Baseline BART | 512 |    |
@@ -84,7 +85,19 @@ project/
 | Baseline BART | 4096 |    |
 | RMT-Summ | 512 |    |
 | RMT-Summ | 1024 |    |
-| RMT-Summ | 2048 |    |
+| RMT-Summ | 2048 | 19180 |
+| RMT-Summ | 4096 |    |
+
+### Eval Memory Usage
+| Model | Seq_len | Mem |
+| :--: | :--: | :--: |
+| Baseline BART | 512 |    |
+| Baseline BART | 1024 |    |
+| Baseline BART | 2048 |    |
+| Baseline BART | 4096 |    |
+| RMT-Summ | 512 |    |
+| RMT-Summ | 1024 |    |
+| RMT-Summ | 2048 | 2151 |
 | RMT-Summ | 4096 |    |
 
 ### Train Iteration Time
@@ -96,7 +109,7 @@ project/
 | Baseline BART | 4096 |    |
 | RMT-Summ | 512 |    |
 | RMT-Summ | 1024 |    |
-| RMT-Summ | 2048 |    |
+| RMT-Summ | 2048 | 0.147 |
 | RMT-Summ | 4096 |    |
 
 ### Eval Iteration Time 
@@ -108,7 +121,7 @@ project/
 | Baseline BART | 4096 |    |
 | RMT-Summ | 512 |    |
 | RMT-Summ | 1024 |    |
-| RMT-Summ | 2048 |    |
+| RMT-Summ | 2048 | 0.041 |
 | RMT-Summ | 4096 |    |
 
 ## TODO
