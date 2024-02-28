@@ -72,6 +72,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --predict_with_generate \
 --freeze_model False \
 --learning_rate 3e-6 \
+--skip_memory_metrics False \
 "$@" > $log_filename 2>&1 &
 
 #     done

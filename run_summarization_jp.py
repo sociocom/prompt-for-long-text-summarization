@@ -629,9 +629,12 @@ def main():
         print(f'{training_args.rouge_type=}')
         if training_args.rouge_type == "Accumulation":
             def compute_metrics(eval_preds):
+                
                 # format: [batch_size, section, seq_len]
                 preds, labels = eval_preds
-            
+                
+                from nltk.tokenize import word_tokenize
+                
                 # calculate rouge for each segment
                 for index in range(preds.shape[1]):
                     pred = preds[:, index, :]
@@ -649,8 +652,6 @@ def main():
                     decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
                     # print(f'{decoded_pred=}')
                     # print(f'{decoded_label=}')
-                    
-                    from nltk.tokenize import word_tokenize
                     
                     result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True, tokenizer=word_tokenize)
                     result = {k: round(v * 100, 4) for k, v in result.items()}
@@ -681,7 +682,7 @@ def main():
                 # print(f'decoded_preds: {decoded_preds}')
                 # print(f'decoded_labels: {decoded_labels}')
                 
-                result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+                result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True, tokenizer=word_tokenize)
                 result = {k: round(v * 100, 4) for k, v in result.items()}
                 prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
                 result["gen_len"] = np.mean(prediction_lens)
