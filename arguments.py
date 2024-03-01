@@ -282,6 +282,9 @@ class DataTrainingArguments:
             )
         },
     )
+    max_position_embeddings: Optional[int] = field (
+        default=1024, metadata={"help": "Define the max input length that model can handle with."}
+    )
                  
     def __post_init__(self):
         if (

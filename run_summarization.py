@@ -186,8 +186,15 @@ def main():
     if data_args.dataset_name == "pubmed":
         raw_datasets = load_dataset(
             "json", 
-            data_dir='datasets/pubmed-dataset-processed-final',
+            data_dir='datasets/pubmed-dataset-incremental',
         )
+        def dataset_reshape(example):
+            example['sections'] = "".join(example['sections'])
+            example['abstract_text'] = "".join(example['abstract_text'])
+            return example
+        for split in raw_datasets.keys():
+            raw_datasets[split] = raw_datasets[split].map(dataset_reshape)       
+        
     elif data_args.dataset_name == "pubmed-incremental":
         raw_datasets = load_dataset(
             "json",
@@ -247,8 +254,7 @@ def main():
 
         for split in raw_datasets.keys():
             raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
-        
-
+         
     
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.  
@@ -265,6 +271,8 @@ def main():
         # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
+    if data_args.max_position_embeddings > 1024:
+        config.max_position_embeddings = data_args.max_position_embeddings
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -338,6 +346,7 @@ def main():
     else:
         raise NotImplementedError
     print(model)
+    print(config)
     
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
@@ -462,11 +471,20 @@ def main():
             # remove pairs where at least one record is None
             
             inputs, targets = [], []
+            # inputs = examples['sections']
+            # targets = examples['abstract_text']
+            text_column = 'sections'
+            summary_column = 'abstract_text'
+            
+        
             for i in range(len(examples[text_column])):
                 if examples[text_column][i] and examples[summary_column][i]:
-                    inputs.append(examples[text_column][i])
-                    targets.append(examples[summary_column][i])
+                    # print(f'{examples[text_column][i]=}')
+                    inputs.append(examples[text_column][i][0])
+                    targets.append(examples[summary_column][i][0])
 
+            # print(f'{inputs=}')
+                        
             inputs = [prefix + inp for inp in inputs]
             model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
             
@@ -481,6 +499,7 @@ def main():
                 ]
 
             model_inputs["labels"] = labels["input_ids"]
+            # print(f'{model_inputs=}')
             return model_inputs
     elif training_args.task_type == "Segment":
         def preprocess_function(examples):
@@ -615,8 +634,8 @@ def main():
 
             # Some simple post-processing
             decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-            print(f'decoded_preds: {decoded_preds}')
-            print(f'decoded_labels: {decoded_labels}')
+            # print(f'decoded_preds: {decoded_preds}')
+            # print(f'decoded_labels: {decoded_labels}')
             
             result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
             result = {k: round(v * 100, 4) for k, v in result.items()}
@@ -820,7 +839,8 @@ def main():
             if training_args.predict_with_generate:
                 predictions = predict_results.predictions
                 predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
-                predictions = predictions.reshape(-1, predictions.shape[-1])
+                if training_args.task_type == "Segment":
+                    predictions = predictions.reshape(-1, predictions.shape[-1])
                 predictions = tokenizer.batch_decode(
                     predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )
