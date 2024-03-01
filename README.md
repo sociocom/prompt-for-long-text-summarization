@@ -65,7 +65,7 @@ project/
 | Model | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr |  avg_gen_len_seg_1 | avg_gen_len_seg_2 | avg_gen_len_seg_3 | avg_gen_len_seg_4 | seg1_rouge1/2/L | seg2_rouge1/2/L | seg3_rouge1/2/L | seg4_rouge1/2/L | 
 | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |:-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | Bart-base | 0 | 0 | 512 | 300 | 42.06 | 17.42 | 38.80 | 2 * 3 | 5e-5 | 61.41 | 139.81 | 197.47 | 223.08 | 43.06/22.68/38.39 | 41.72/17.00/38.01  | 41.66/15.26/39.33 | 41.80/14.73/39.37 |
-| RMT | 20 | 0 | 512 | 300 |  |  |  | 2 * 3 | 5e-5 | | | | | | | | |
+| RMT | 20 | 0 | 512 | 300 | 46.00 | 20.22 | 42.45 | 2 * 3 | 5e-5 | 64.93 | 142.16 | 215.83 | 248.98 | 45.90/25.39/41.017 | 45.4236/20.19/41.41 | 46.47/18.46/43.82 | 46.21/16.87/43.54 |
 | RMT | 32 | 0 | 512 | 300 |  |  |  | 2 * 3 | 5e-5 |:--: |:--: |:--: |:--: |:--: |:--: |:--: |:--: |
 | RMT | 64 | 0 | 512 | 300 |  |  |  |   2 * 3   | 5e-5 |:--: |:--: |:--: |:--: |:--: |:--: |:--: |:--: |
 | RMT | 100 | 0 |  512 | 300 |  |  |  | 2 * 3 | 5e-5 |:--: |:--: |:--: |:--: |:--: |:--: |:--: |:--: |
@@ -93,7 +93,7 @@ project/
 
 | Model | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr | avg_gen_len_seg_1 | avg_gen_len_seg_2 | avg_gen_len_seg_3 | seg1_rouge1/2/L | seg2_rouge1/2/L | seg3_rouge1/2/L |
 | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| Bart-base | 0 | 0 | 512 | 300 |  |  |  | 2 * 3 | 3e-6 | :-: | :-: | :-: | :-: | :-: | :-: |
+| Bart-base | 0 | 0 | 512 | 300 | 40.05 | 15.30 | 36.58 | 2 * 3 | 3e-6 | 291.13 | 298.95 | 300.0 | 28.51/14.30/25.88 | 44.00/16.39/40.04 | 47.53/15.30/43.78 |
 | RMT | 20 | 0 | 512 | 300 |  |  |  | 2 * 3 | 3e-6 | :-: | :-: | :-: | :-: | :-: | :-: |
 | RMT | 32 | 0 | 512 | 300 |  |  |  | 2 * 3 | 3e-6 | :-: | :-: | :-: | :-: | :-: | :-: |
 | RMT | 64 | 0 | 512 | 300 |  |  |  | 2 * 3 | 3e-6 | :-: | :-: | :-: | :-: | :-: | :-: |
@@ -119,8 +119,8 @@ project/
 | Baseline BART | 4096 |    |
 | RMT-Summ | 512 | 5939 |
 | RMT-Summ | 1024 | 10118 |
-| RMT-Summ | 2048 |  |
-| RMT-Summ | 4096 |    |
+| RMT-Summ | 2048 | 19180 |
+| RMT-Summ | 4096 | 37249 |
 
 ### Inference Memory Usage
 | Model | Seq_len | Mem |
@@ -131,8 +131,8 @@ project/
 | Baseline BART | 4096 | |
 | RMT-Summ | 512 | 1345 |
 | RMT-Summ | 1024 | 1350 |
-| RMT-Summ | 2048 |  |
-| RMT-Summ | 4096 |  |
+| RMT-Summ | 2048 | 2179 |
+| RMT-Summ | 4096 | 3996 |
 
 ### Train Iteration Time (iter/s)
 | Model | Seq_len | Iter Time |
@@ -143,8 +143,8 @@ project/
 | Baseline BART | 4096 | |
 | RMT-Summ | 512 | 2.481 |
 | RMT-Summ | 1024 | 1.029 |
-| RMT-Summ | 2048 | |
-| RMT-Summ | 4096 | |
+| RMT-Summ | 2048 | 0.464 |
+| RMT-Summ | 4096 | 0.243 |
 
 ### Inference Iteration Time (iter/s)
 | Model | Seq_len | Iter Time |
@@ -155,6 +155,6 @@ project/
 | Baseline BART | 4096 | |
 | RMT-Summ | 512 | 0.11 |
 | RMT-Summ | 1024 | 0.121 |
-| RMT-Summ | 2048 |  |
-| RMT-Summ | 4096 |  |
+| RMT-Summ | 2048 | 0.043 |
+| RMT-Summ | 4096 | 0.022 |
 

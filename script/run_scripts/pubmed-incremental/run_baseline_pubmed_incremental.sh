@@ -27,7 +27,7 @@ log_filename="${log_folder}/logs_${current_datetime}.txt"
 
 # 执行命令并将输出重定向到日志文件
 # nohup accelerate launch run.py \
-nohup python3 run_summarization.py \
+CUDA_VISIBLE_DEVICES=2 nohup python3 run_summarization.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
@@ -35,9 +35,9 @@ nohup python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 2 \
---per_device_eval_batch_size 2 \
---num_train_epochs 5 \
+--per_device_train_batch_size 6 \
+--per_device_eval_batch_size 6 \
+--num_train_epochs 1 \
 --max_train_samples 100000 \
 --max_eval_samples 10000 \
 --max_predict_samples 10000 \

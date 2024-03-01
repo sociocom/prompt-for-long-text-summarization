@@ -397,7 +397,8 @@ class BartRMTForPubmed(RMTBaseModel):
         for param in ["attention_mask", "labels"]:
             if param in sec_kwargs:
                 sec_kwargs.pop(param) 
-                       
+        
+        encoder = self.model.get_encoder()
         for sec_num, sec_inputs in enumerate(input_ids):
             
             if self.rmt_config.bptt_depth != -1:
@@ -416,9 +417,9 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_attention_mask[sec_inputs == self.pad_token_id] = 0
             encoder_sec_kwargs['attention_mask'] = sec_attention_mask
 
-            encoder_outputs = self.model.get_encoder()(**encoder_sec_kwargs)
+            encoder_outputs = encoder(**encoder_sec_kwargs)
             memory = encoder_outputs.last_hidden_state[:, self.memory_position]
-            
+              
             sec_kwargs['input_ids'] = None
             sec_kwargs['encoder_outputs'] = encoder_outputs
             

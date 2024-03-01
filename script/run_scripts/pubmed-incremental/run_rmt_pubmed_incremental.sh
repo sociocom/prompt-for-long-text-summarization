@@ -34,7 +34,7 @@ export WANDB_PROJECT_NAME="kaifan-li/Incremental_Summarization" # IMPORTANT: set
 #     for post_seq_len in 0 300  
 #     do
 
-pre_seq_len=20
+pre_seq_len=64
 post_seq_len=0
 max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
@@ -48,12 +48,12 @@ CUDA_VISIBLE_DEVICES=1 nohup python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 6 \
---per_device_eval_batch_size 6 \
---num_train_epochs 1 \
+--per_device_train_batch_size 8 \
+--per_device_eval_batch_size 8 \
+--num_train_epochs 5 \
 --max_train_samples 100000 \
---max_eval_samples 200000 \
---max_predict_samples 20000 \
+--max_eval_samples 10000 \
+--max_predict_samples 10000 \
 --max_source_length $max_source_length \
 --max_n_segments 4 \
 --max_target_length 300 \
