@@ -62,7 +62,7 @@ from peft import (
 from arguments import get_args
 from config import RMTBartConfig
 from utils import RMTDataCollatorForSeq2Seq
-from model.modeling_bart import BartPrefixPropForConditionalGeneration
+from model.modeling_bart import BartForConditionalGeneration
 from model.summarization import BartForPubmed, BartRMTForPubmed
 
 logger = logging.getLogger(__name__)
@@ -282,7 +282,7 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
     )
     if training_args.model_type == "BaseModel":
-        model = AutoModelForSeq2SeqLM.from_pretrained(
+        model = BartForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
@@ -351,9 +351,9 @@ def main():
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
     if training_args.task_type == "Normal":
-        embedding_size = model.get_input_embeddings().weight.shape[0]
-        if len(tokenizer) > embedding_size:
-            model.resize_token_embeddings(len(tokenizer))
+        # embedding_size = model.get_input_embeddings().weight.shape[0]
+        # if len(tokenizer) > embedding_size:
+        #     model.resize_token_embeddings(len(tokenizer))
         
         # For Multi-lingual summarization, we need to set the decoder_start_token_id.
         if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
