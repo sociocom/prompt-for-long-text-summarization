@@ -766,6 +766,15 @@ class BartEncoder(BartPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        logger.info(f"Setting `config.max_position_embeddings={new_num_position_embeddings}`...")
+        self.config.max_position_embeddings = new_num_position_embeddings
+        self.embed_positions = BartLearnedPositionalEmbedding(
+            self.config.max_position_embeddings,
+            self.config.d_model,
+        )
+        self.embed_positions.to(self.device)
+    
     def get_input_embeddings(self):
         return self.embed_tokens
 
@@ -978,7 +987,16 @@ class BartDecoder(BartPreTrainedModel):
         self.gradient_checkpointing = False
         # Initialize weights and apply final processing
         self.post_init()
-
+        
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        logger.info(f"Setting `config.max_position_embeddings={new_num_position_embeddings}`...")
+        self.config.max_position_embeddings = new_num_position_embeddings
+        self.embed_positions = BartLearnedPositionalEmbedding(
+            self.config.max_position_embeddings,
+            self.config.d_model,
+        )
+        self.embed_positions.to(self.device)
+        
     def get_input_embeddings(self):
         return self.embed_tokens
 
@@ -1248,6 +1266,12 @@ class BartModel(BartPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        
+        self.config.max_position_embeddings = new_num_position_embeddings
+        self.encoder.resize_position_embeddings(new_num_position_embeddings)
+        self.decoder.resize_position_embeddings(new_num_position_embeddings)
+    
     def get_input_embeddings(self):
         return self.shared
 
@@ -1393,6 +1417,11 @@ class BartForConditionalGeneration(BartPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
+    def resize_position_embeddings(self, new_num_position_embeddings: int):
+        self.config.max_position_embeddings = new_num_position_embeddings
+        self.model.encoder.resize_position_embeddings(new_num_position_embeddings)
+        self.model.decoder.resize_position_embeddings(new_num_position_embeddings)
+        
     def get_encoder(self):
         return self.model.get_encoder()
 
