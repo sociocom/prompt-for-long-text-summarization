@@ -189,8 +189,9 @@ def main():
             data_dir='datasets/pubmed-dataset-incremental',
         )
         def dataset_reshape(example):
-            example['sections'] = "".join(example['sections'])
-            example['abstract_text'] = "".join(example['abstract_text'])
+            # copy to 2x length to do test
+            example['sections'] = "".join(example['sections'], example['sections'])
+            example['abstract_text'] = "".join(example['abstract_text'], example['abstract_text'])
             return example
         for split in raw_datasets.keys():
             raw_datasets[split] = raw_datasets[split].map(dataset_reshape)       
