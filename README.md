@@ -109,6 +109,7 @@ project/
 > All experiments on a single A100 40GB
 > About memory usage : https://huggingface.co/docs/transformers/main_classes/trainer
 >   we calculate (*_mem_gpu_alloc_delta + *_mem_gpu_peaked_delta)
+> batch_size = 2
 
 ### Train Memory Usage
 | Model | Seq_len | Mem |
@@ -130,6 +131,7 @@ project/
 | Baseline BART | 1024 | 1702 |
 | Baseline BART | 2048 | |
 | Baseline BART | 4096 | 2654 |
+| Baseline BART | 8192 | OOM |
 | RMT-Summ | 512 | 1345 |
 | RMT-Summ | 1024 | 1350 |
 | RMT-Summ | 2048 | 2179 |
@@ -142,6 +144,7 @@ project/
 | Baseline BART | 1024 | 2.383 |
 | Baseline BART | 2048 | |
 | Baseline BART | 4096 | 5.972 |
+| Baseline BART | 8192 | OOM |
 | RMT-Summ | 512 | 2.481 |
 | RMT-Summ | 1024 | 1.029 |
 | RMT-Summ | 2048 | 0.464 |
@@ -154,6 +157,7 @@ project/
 | Baseline BART | 1024 | 0.328 |
 | Baseline BART | 2048 | |
 | Baseline BART | 4096 | 1.527 |
+| Baseline BART | 8192 | OOM |
 | RMT-Summ | 512 | 0.11 |
 | RMT-Summ | 1024 | 0.121 |
 | RMT-Summ | 2048 | 0.043 |

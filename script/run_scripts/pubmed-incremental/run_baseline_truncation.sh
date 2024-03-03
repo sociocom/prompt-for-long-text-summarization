@@ -40,7 +40,7 @@ max_source_length=$((pre_seq_len + post_seq_len + 2048))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
 
-CUDA_VISIBLE_DEVICES=3 nohup python3 run_summarization.py \
+CUDA_VISIBLE_DEVICES=4 nohup python3 run_summarization.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
@@ -48,14 +48,14 @@ CUDA_VISIBLE_DEVICES=3 nohup python3 run_summarization.py \
 --do_train true \
 --do_eval false \
 --do_predict true \
---per_device_train_batch_size 6 \
---per_device_eval_batch_size 6 \
+--per_device_train_batch_size 2 \
+--per_device_eval_batch_size 2 \
 --num_train_epochs 1 \
 --max_train_samples 100000 \
 --max_eval_samples 10000 \
 --max_predict_samples 10000 \
 --max_source_length $max_source_length \
---max_n_segments 8 \
+--max_n_segments 4 \
 --max_target_length 300 \
 --pre_seq_len $pre_seq_len \
 --post_seq_len $post_seq_len \

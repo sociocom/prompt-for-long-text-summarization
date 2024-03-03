@@ -48,8 +48,8 @@ CUDA_VISIBLE_DEVICES=1 nohup python3 run_summarization.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 8 \
---per_device_eval_batch_size 8 \
+--per_device_train_batch_size 6 \
+--per_device_eval_batch_size 6 \
 --num_train_epochs 5 \
 --max_train_samples 100000 \
 --max_eval_samples 10000 \

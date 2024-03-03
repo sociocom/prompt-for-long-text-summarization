@@ -188,19 +188,27 @@ def main():
             "json", 
             data_dir='datasets/pubmed-dataset-incremental',
         )
-        def dataset_reshape(example):
-            # copy to 2x length to do test
-            example['sections'] = "".join(example['sections'], example['sections'])
-            example['abstract_text'] = "".join(example['abstract_text'], example['abstract_text'])
-            return example
-        for split in raw_datasets.keys():
-            raw_datasets[split] = raw_datasets[split].map(dataset_reshape)       
-        
     elif data_args.dataset_name == "pubmed-incremental":
         raw_datasets = load_dataset(
             "json",
             data_dir="datasets/pubmed-dataset-incremental",
         )
+        
+        if training_args.model_type == "BaseModel":
+            def dataset_reshape(example):
+                # copy to 4x length to do test
+                example['sections'] = example['sections'] * 10
+                # print(example['sections'])
+                example['sections'] = " ".join(example['sections'])
+                # print(example['sections'])
+                # raise NotImplementedError
+                example['abstract_text'] = " ".join(example['abstract_text'])
+                
+                return example
+                
+            for split in raw_datasets.keys():
+                raw_datasets[split] = raw_datasets[split].map(dataset_reshape)
+                    
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -227,34 +235,34 @@ def main():
             # token=model_args.token,
         )
 
-    if data_args.max_n_segments <= len(raw_datasets['train']['sections'][0]):
-        def truncate_max_n_segments(example):
-            example['sections'] = example['sections'][:data_args.max_n_segments]
-            example['abstract_text'] = example['abstract_text'][:data_args.max_n_segments]
-            return example
+    # if data_args.max_n_segments <= len(raw_datasets['train']['sections'][0]):
+    #     def truncate_max_n_segments(example):
+    #         example['sections'] = example['sections'][:data_args.max_n_segments]
+    #         example['abstract_text'] = example['abstract_text'][:data_args.max_n_segments]
+    #         return example
         
-        for split in raw_datasets.keys():
-            raw_datasets[split] = raw_datasets[split].map(truncate_max_n_segments)
+    #     for split in raw_datasets.keys():
+    #         raw_datasets[split] = raw_datasets[split].map(truncate_max_n_segments)
             
-    else:
-        # do dummy process to extend max input length
-        def extend_max_n_segments(example):
-            # num_segments_to_copy = max_n_segments - len(example['sections'])
-            origin_segments_num = len(example['sections'])
-            num_segments_to_copy = data_args.max_n_segments - origin_segments_num
+    # else:
+    #     # do dummy process to extend max input length
+    #     def extend_max_n_segments(example):
+    #         # num_segments_to_copy = max_n_segments - len(example['sections'])
+    #         origin_segments_num = len(example['sections'])
+    #         num_segments_to_copy = data_args.max_n_segments - origin_segments_num
 
-            while num_segments_to_copy > 0 :
-                segments_to_copy_temp = min(origin_segments_num, num_segments_to_copy)
+    #         while num_segments_to_copy > 0 :
+    #             segments_to_copy_temp = min(origin_segments_num, num_segments_to_copy)
                 
-                example['sections'] += example['sections'][:segments_to_copy_temp]
-                example['abstract_text'] += example['abstract_text'][:segments_to_copy_temp]
+    #             example['sections'] += example['sections'][:segments_to_copy_temp]
+    #             example['abstract_text'] += example['abstract_text'][:segments_to_copy_temp]
                 
-                num_segments_to_copy -= segments_to_copy_temp
+    #             num_segments_to_copy -= segments_to_copy_temp
                 
-            return example
+    #         return example
 
-        for split in raw_datasets.keys():
-            raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
+    #     for split in raw_datasets.keys():
+    #         raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
          
     
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
@@ -292,27 +300,6 @@ def main():
             # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
-        if training_args.task_type == "Segment":
-            # prepare rmt parameters
-            rmt_config = RMTBartConfig(
-                pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
-                post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
-                freeze_model=training_args.freeze_model,
-                max_section_length=data_args.max_source_length,
-                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
-                max_target_length=data_args.max_target_length,
-                **config.to_dict()
-            )
-            data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
-            # load rmt model
-            if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
-                model = BartForPubmed(
-                    base_model=model,
-                    rmt_config=rmt_config,
-                    tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-                )
-            else:
-                raise NotImplementedError
     elif training_args.model_type == "BaseModelWithRMT":
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -352,9 +339,9 @@ def main():
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
     if training_args.task_type == "Normal":
-        # embedding_size = model.get_input_embeddings().weight.shape[0]
-        # if len(tokenizer) > embedding_size:
-        #     model.resize_token_embeddings(len(tokenizer))
+        embedding_size = model.get_input_embeddings().weight.shape[0]
+        if len(tokenizer) > embedding_size:
+            model.resize_token_embeddings(len(tokenizer))
         
         # For Multi-lingual summarization, we need to set the decoder_start_token_id.
         if model.config.decoder_start_token_id is None and isinstance(tokenizer, (MBartTokenizer, MBartTokenizerFast)):
@@ -402,7 +389,7 @@ def main():
                     f" `--max_source_length` to {model.config.max_position_embeddings} or to automatically resize the"
                     " model's position encodings by passing `--resize_position_embeddings`."
                 )
-
+    
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
     
     # Preprocessing the datasets.
@@ -476,18 +463,27 @@ def main():
             # targets = examples['abstract_text']
             text_column = 'sections'
             summary_column = 'abstract_text'
-            
         
             for i in range(len(examples[text_column])):
                 if examples[text_column][i] and examples[summary_column][i]:
                     # print(f'{examples[text_column][i]=}')
-                    inputs.append(examples[text_column][i][0])
-                    targets.append(examples[summary_column][i][0])
+                    inputs.append(examples[text_column][i])
+                    targets.append(examples[summary_column][i])
 
             # print(f'{inputs=}')
                         
             inputs = [prefix + inp for inp in inputs]
             model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
+            
+            # calculate avg token length
+            # tokens = 0
+            # for i in range(len(model_inputs['input_ids'])):
+            #     tokens += len(model_inputs['input_ids'][i])
+            
+            # avg_token_length = (tokens/(len(model_inputs['input_ids'])))
+            # print(f'{avg_token_length=}')
+            # raise NotImplementedError
+            
             
             # Tokenize targets with the `text_target` keyword argument
             labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
@@ -500,8 +496,11 @@ def main():
                 ]
 
             model_inputs["labels"] = labels["input_ids"]
+            # print avg length of model_inputs['input_ids]
+            
             # print(f'{model_inputs=}')
             return model_inputs
+        
     elif training_args.task_type == "Segment":
         def preprocess_function(examples):
             
