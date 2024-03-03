@@ -1,13 +1,16 @@
 datasets
 numpy
 tqdm
-transformers[torch]
+transformers[torch]==4.30.1
 seqeval
 gpytorch
 evaluate
 nltk
 wordninja
 spacy
+peft
+rouge_score
+ja_sentence_segmenter
 
 # required for hyper search
 optuna

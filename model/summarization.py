@@ -228,18 +228,43 @@ class BartRMTForPubmed(RMTBaseModel):
         self.generation_config = self.model.generation_config
         # self.generation_config.max_length = self.generation_config.max_length * 4    
         
-    def _process_generation_outputs(self, model_outputs):
+    # def _process_generation_outputs(self, model_outputs):
         
+    #     outputs = []
+    #     for batch_idx in range(len(model_outputs[0])):
+    #         batch_outputs = []
+    #         for sample in model_outputs:
+    #             batch_outputs.append(sample[batch_idx])
+    #         batch_outputs = torch.concat(batch_outputs)
+    #         outputs.append(batch_outputs)
+            
+    #     outputs = torch.stack([o for o in outputs])
+            
+    #     return outputs
+
+    def _process_generation_outputs(self, model_outputs):
         outputs = []
+        # print(f'length of model_outputs: {len(model_outputs)}')
+        
         for batch_idx in range(len(model_outputs[0])):
             batch_outputs = []
             for sample in model_outputs:
                 batch_outputs.append(sample[batch_idx])
-            batch_outputs = torch.concat(batch_outputs)
-            outputs.append(batch_outputs)
             
+            # Add print statements to debug
+            # print(f"Batch Index: {batch_idx}")
+            # print(f"Sizes of individual tensors in batch_outputs: {[o.size() for o in batch_outputs]}")
+
+            max_size = self.rmt_config.max_target_length
+            batch_outputs_padded = [torch.nn.functional.pad(o, (0, max_size - o.size(0)), value=-100) for o in batch_outputs]
+            
+            batch_outputs_padded = torch.stack([o for o in batch_outputs_padded])
+            outputs.append(batch_outputs_padded)
+        
+        # Add print statement to debug
+        # print(f"Sizes of individual tensors in outputs: {[o.size() for o in outputs]}")
+        
         outputs = torch.stack([o for o in outputs])
-            
         return outputs
     
     def _pad_generation_output(self, tensor):
@@ -372,7 +397,8 @@ class BartRMTForPubmed(RMTBaseModel):
         for param in ["attention_mask", "labels"]:
             if param in sec_kwargs:
                 sec_kwargs.pop(param) 
-                       
+        
+        encoder = self.model.get_encoder()
         for sec_num, sec_inputs in enumerate(input_ids):
             
             if self.rmt_config.bptt_depth != -1:
@@ -391,9 +417,9 @@ class BartRMTForPubmed(RMTBaseModel):
             sec_attention_mask[sec_inputs == self.pad_token_id] = 0
             encoder_sec_kwargs['attention_mask'] = sec_attention_mask
 
-            encoder_outputs = self.model.get_encoder()(**encoder_sec_kwargs)
+            encoder_outputs = encoder(**encoder_sec_kwargs)
             memory = encoder_outputs.last_hidden_state[:, self.memory_position]
-            
+              
             sec_kwargs['input_ids'] = None
             sec_kwargs['encoder_outputs'] = encoder_outputs
             

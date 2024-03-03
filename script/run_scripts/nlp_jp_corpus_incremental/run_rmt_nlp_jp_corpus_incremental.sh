@@ -40,7 +40,7 @@ max_source_length=$((pre_seq_len + post_seq_len + 512))
 export WANDB_NAME=$DISPLAY_NAME-$pre_seq_len-$post_seq_len
 # export log_filename="${log_folder}/logs_${current_datetime}_${pre_seq_len}_${post_seq_len}.txt"
 
-python3 run_summarization_jp.py \
+CUDA_VISIBLE_DEVICES=3 python3 run_summarization_jp.py \
 --model_name_or_path "$MODEL_NAME" \
 --dataset_name "$DATASET_NAME" \
 --output_dir "$checkpoint_dir" \
@@ -48,14 +48,14 @@ python3 run_summarization_jp.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 4 \
---per_device_eval_batch_size 4 \
+--per_device_train_batch_size 6 \
+--per_device_eval_batch_size 6 \
 --num_train_epochs 10 \
---max_train_samples 1000 \
---max_eval_samples 1000 \
---max_predict_samples 1000 \
+--max_train_samples 10000 \
+--max_eval_samples 20000 \
+--max_predict_samples 2000 \
 --max_source_length $max_source_length \
---max_target_length 300 \
+--max_target_length 512 \
 --val_max_target_length 300 \
 --generation_max_length 300 \
 --pre_seq_len $pre_seq_len \
@@ -72,6 +72,7 @@ python3 run_summarization_jp.py \
 --predict_with_generate \
 --freeze_model False \
 --learning_rate 5e-5 \
+--skip_memory_metrics False \
 "$@" > $log_filename 2>&1 &
 
 #     done

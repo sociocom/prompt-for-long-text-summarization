@@ -62,7 +62,7 @@ from peft import (
 from arguments import get_args
 from config import RMTBartConfig
 from utils import RMTDataCollatorForSeq2Seq
-from model.modeling_bart import BartPrefixPropForConditionalGeneration
+from model.modeling_bart import BartForConditionalGeneration
 from model.summarization import BartForPubmed, BartRMTForPubmed
 
 logger = logging.getLogger(__name__)
@@ -186,20 +186,36 @@ def main():
     if data_args.dataset_name == "pubmed":
         raw_datasets = load_dataset(
             "json", 
-            data_dir='datasets/pubmed-dataset-processed-final',
+            data_dir='datasets/pubmed-dataset-incremental',
         )
     elif data_args.dataset_name == "pubmed-incremental":
         raw_datasets = load_dataset(
             "json",
             data_dir="datasets/pubmed-dataset-incremental",
         )
+        
+        if training_args.model_type == "BaseModel":
+            def dataset_reshape(example):
+                # copy to 4x length to do test
+                example['sections'] = example['sections'] * 10
+                # print(example['sections'])
+                example['sections'] = " ".join(example['sections'])
+                # print(example['sections'])
+                # raise NotImplementedError
+                example['abstract_text'] = " ".join(example['abstract_text'])
+                
+                return example
+                
+            for split in raw_datasets.keys():
+                raw_datasets[split] = raw_datasets[split].map(dataset_reshape)
+                    
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
             data_args.dataset_name,
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            # token=model_args.token,
         )
     else:
         data_files = {}
@@ -216,8 +232,39 @@ def main():
             extension,
             data_files=data_files,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            # token=model_args.token,
         )
+
+    # if data_args.max_n_segments <= len(raw_datasets['train']['sections'][0]):
+    #     def truncate_max_n_segments(example):
+    #         example['sections'] = example['sections'][:data_args.max_n_segments]
+    #         example['abstract_text'] = example['abstract_text'][:data_args.max_n_segments]
+    #         return example
+        
+    #     for split in raw_datasets.keys():
+    #         raw_datasets[split] = raw_datasets[split].map(truncate_max_n_segments)
+            
+    # else:
+    #     # do dummy process to extend max input length
+    #     def extend_max_n_segments(example):
+    #         # num_segments_to_copy = max_n_segments - len(example['sections'])
+    #         origin_segments_num = len(example['sections'])
+    #         num_segments_to_copy = data_args.max_n_segments - origin_segments_num
+
+    #         while num_segments_to_copy > 0 :
+    #             segments_to_copy_temp = min(origin_segments_num, num_segments_to_copy)
+                
+    #             example['sections'] += example['sections'][:segments_to_copy_temp]
+    #             example['abstract_text'] += example['abstract_text'][:segments_to_copy_temp]
+                
+    #             num_segments_to_copy -= segments_to_copy_temp
+                
+    #         return example
+
+    #     for split in raw_datasets.keys():
+    #         raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
+         
+    
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.  
     
@@ -230,65 +277,29 @@ def main():
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
+    if data_args.max_position_embeddings > 1024:
+        config.max_position_embeddings = data_args.max_position_embeddings
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     if training_args.model_type == "BaseModel":
-        model = AutoModelForSeq2SeqLM.from_pretrained(
+        model = BartForConditionalGeneration.from_pretrained(
             model_args.model_name_or_path,
             from_tf=bool(".ckpt" in model_args.model_name_or_path),
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
-        if training_args.task_type == "Segment":
-            # prepare rmt parameters
-            rmt_config = RMTBartConfig(
-                pre_seq_len=model_args.pre_seq_len if model_args.pre_seq_len is not None else 0,
-                post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
-                freeze_model=training_args.freeze_model,
-                max_section_length=data_args.max_source_length,
-                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
-                **config.to_dict()
-            )
-            data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
-            # load rmt model
-            if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental":
-                model = BartForPubmed(
-                    base_model=model,
-                    rmt_config=rmt_config,
-                    tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-                )
-            else:
-                raise NotImplementedError
-    # NOTE: it seems that a bug exsits when using trainer with prefix tuning
-    elif training_args.model_type == "BaseModelWithPrefixTuning":
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-        peft_config = PrefixTuningConfig(
-            task_type=TaskType.SEQ_2_SEQ_LM,
-            inference_mode=False,
-            num_virtual_tokens=model_args.pre_seq_len,            
-        )
-        model = get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
     elif training_args.model_type == "BaseModelWithRMT":
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -297,7 +308,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         # prepare rmt parameters
@@ -307,6 +318,7 @@ def main():
             freeze_model=training_args.freeze_model,
             max_section_length=data_args.max_source_length,
             max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+            max_target_length=data_args.max_target_length,
             **config.to_dict()
         )
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
@@ -319,29 +331,10 @@ def main():
             )
         else:
             raise NotImplementedError
-    elif training_args.model_type == "BaseModelWithPrefixProp":
-        # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
-        data_args.max_source_length = data_args.max_source_length
-        prompt_bart_config = RMTBartConfig(
-            pre_seq_len=model_args.pre_seq_len,
-            # post_seq_len=model_args.post_seq_len,
-            **config.to_dict()
-        )
-        model = BartPrefixPropForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=prompt_bart_config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-    elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
-        data_args.max_source_length = data_args.max_source_length
-        raise NotImplementedError
     else:
         raise NotImplementedError
     print(model)
+    print(config)
     
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
@@ -396,7 +389,7 @@ def main():
                     f" `--max_source_length` to {model.config.max_position_embeddings} or to automatically resize the"
                     " model's position encodings by passing `--resize_position_embeddings`."
                 )
-
+    
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
     
     # Preprocessing the datasets.
@@ -466,13 +459,31 @@ def main():
             # remove pairs where at least one record is None
             
             inputs, targets = [], []
+            # inputs = examples['sections']
+            # targets = examples['abstract_text']
+            text_column = 'sections'
+            summary_column = 'abstract_text'
+        
             for i in range(len(examples[text_column])):
                 if examples[text_column][i] and examples[summary_column][i]:
+                    # print(f'{examples[text_column][i]=}')
                     inputs.append(examples[text_column][i])
                     targets.append(examples[summary_column][i])
 
+            # print(f'{inputs=}')
+                        
             inputs = [prefix + inp for inp in inputs]
             model_inputs = tokenizer(inputs, max_length=data_args.max_source_length, padding=padding, truncation=True)
+            
+            # calculate avg token length
+            # tokens = 0
+            # for i in range(len(model_inputs['input_ids'])):
+            #     tokens += len(model_inputs['input_ids'][i])
+            
+            # avg_token_length = (tokens/(len(model_inputs['input_ids'])))
+            # print(f'{avg_token_length=}')
+            # raise NotImplementedError
+            
             
             # Tokenize targets with the `text_target` keyword argument
             labels = tokenizer(text_target=targets, max_length=max_target_length, padding=padding, truncation=True)
@@ -485,7 +496,11 @@ def main():
                 ]
 
             model_inputs["labels"] = labels["input_ids"]
+            # print avg length of model_inputs['input_ids]
+            
+            # print(f'{model_inputs=}')
             return model_inputs
+        
     elif training_args.task_type == "Segment":
         def preprocess_function(examples):
             
@@ -619,8 +634,8 @@ def main():
 
             # Some simple post-processing
             decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-            print(f'decoded_preds: {decoded_preds}')
-            print(f'decoded_labels: {decoded_labels}')
+            # print(f'decoded_preds: {decoded_preds}')
+            # print(f'decoded_labels: {decoded_labels}')
             
             result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
             result = {k: round(v * 100, 4) for k, v in result.items()}
@@ -631,35 +646,88 @@ def main():
     elif training_args.task_type == "Segment":
         print(f'{training_args.rouge_type=}')
         if training_args.rouge_type == "Accumulation":
+            # def compute_metrics(eval_preds):
+            #     # preds is already combined by sections, but labels is still a list of list
+            #     # Note: both preds and labels are list instead of tensor
+            #     # labels: batch_size, section, seq_len
+            #     preds, labels = eval_preds
+            #     # print(f'{labels=}')
+            #     # print(f'shape_0: {len(labels)}')
+            #     # print(f'shape_1: {len(labels[0])}')
+            #     # print(f'shape_2: {len(labels[0][0])}')
+                
+            #     # print(f'{preds=}')
+            #     # print(f'shape_0: {len(preds)}')
+            #     # print(f'shape_1: {len(preds[0])}')
+                
+            #     results = []
+            #     for sections in labels:
+            #         new_list = []
+            #         for section in sections:
+            #             new_list.extend(section)
+            #         results.append(new_list)
+            #     # print(f'{results=}')
+            #     labels = np.array(results)
+                
+            #     # print(f'before: {labels=}')
+            #     # print(f'before: {preds=}')
+                
+            #     if isinstance(preds, tuple): 
+            #         preds = preds[0]
+                    
+            #     # Replace -100s used for padding as we can't decode them
+            #     preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            #     decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+                
+            #     labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            #     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            #     # Some simple post-processing
+            #     decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+            #     # print(f'decoded_preds: {decoded_preds}')
+            #     # print(f'decoded_labels: {decoded_labels}')
+                
+            #     result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
+            #     result = {k: round(v * 100, 4) for k, v in result.items()}
+            #     prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            #     result["gen_len"] = np.mean(prediction_lens)
+            #     return result            
+        
             def compute_metrics(eval_preds):
-                # preds is already combined by sections, but labels is still a list of list
-                # Note: both preds and labels are list instead of tensor
-                # labels: batch_size, section, seq_len
+                # format: [batch_size, section, seq_len]
                 preds, labels = eval_preds
-                # print(f'{labels=}')
-                # print(f'shape_0: {len(labels)}')
-                # print(f'shape_1: {len(labels[0])}')
-                # print(f'shape_2: {len(labels[0][0])}')
                 
-                # print(f'{preds=}')
-                # print(f'shape_0: {len(preds)}')
-                # print(f'shape_1: {len(preds[0])}')
-                
-                results = []
-                for sections in labels:
-                    new_list = []
-                    for section in sections:
-                        new_list.extend(section)
-                    results.append(new_list)
-                # print(f'{results=}')
-                labels = np.array(results)
-                
-                # print(f'before: {labels=}')
-                # print(f'before: {preds=}')
+                # calculate rouge for each segment
+                for index in range(preds.shape[1]):
+                    pred = preds[:, index, :]
+                    label = labels[:, index, :]
+                    
+                    pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
+                    decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
+                    
+                    label = np.where(label != -100, label, tokenizer.pad_token_id)
+                    decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
+                    
+                    # Some simple post-processing
+                    decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
+                    
+                    result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True)
+                    result = {k: round(v * 100, 4) for k, v in result.items()}
+                    predicton_lens = [np.count_nonzero(p != tokenizer.pad_token_id) for p in pred]
+                    result["gen_len"] = np.mean(predicton_lens)
+                    print(f'-'*50)
+                    print(f'result for {index+1} segment:')
+                    print(result)
+                    print(f'-'*50)
+                    print(f'\n')
+                    
+                # calculate rouge for the whole document
+                preds = preds.reshape(-1, preds.shape[-1])
+                labels = labels.reshape(-1, labels.shape[-1])
                 
                 if isinstance(preds, tuple): 
                     preds = preds[0]
-                    
+                
                 # Replace -100s used for padding as we can't decode them
                 preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
                 decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
@@ -676,7 +744,8 @@ def main():
                 result = {k: round(v * 100, 4) for k, v in result.items()}
                 prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
                 result["gen_len"] = np.mean(prediction_lens)
-                return result            
+                
+                return result
         elif training_args.rouge_type == "Final":
             raise NotImplementedError
         
@@ -770,6 +839,8 @@ def main():
             if training_args.predict_with_generate:
                 predictions = predict_results.predictions
                 predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
+                if training_args.task_type == "Segment":
+                    predictions = predictions.reshape(-1, predictions.shape[-1])
                 predictions = tokenizer.batch_decode(
                     predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )

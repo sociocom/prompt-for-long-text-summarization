@@ -210,7 +210,7 @@ def main():
             data_args.dataset_name,
             data_args.dataset_config_name,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            # token=model_args.token,
         )
     else:
         data_files = {}
@@ -227,7 +227,7 @@ def main():
             extension,
             data_files=data_files,
             cache_dir=model_args.cache_dir,
-            token=model_args.token,
+            # token=model_args.token,
         )
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
     # https://huggingface.co/docs/datasets/loading_datasets.html.  
@@ -241,7 +241,7 @@ def main():
         model_args.config_name if model_args.config_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     tokenizer = AutoTokenizer.from_pretrained(
@@ -249,7 +249,7 @@ def main():
         cache_dir=model_args.cache_dir,
         use_fast=model_args.use_fast_tokenizer,
         revision=model_args.model_revision,
-        token=model_args.token,
+        # token=model_args.token,
         trust_remote_code=model_args.trust_remote_code,
     )
     if training_args.model_type == "BaseModel":
@@ -259,7 +259,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         if training_args.task_type == "Segment":
@@ -269,7 +269,8 @@ def main():
                 post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
                 freeze_model=training_args.freeze_model,
                 max_section_length=data_args.max_source_length,
-                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len,
+                max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+                max_target_length=data_args.max_target_length,
                 **config.to_dict()
             )
             data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
@@ -282,24 +283,6 @@ def main():
                 )
             else:
                 raise NotImplementedError
-    # NOTE: it seems that a bug exsits when using trainer with prefix tuning
-    elif training_args.model_type == "BaseModelWithPrefixTuning":
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-        peft_config = PrefixTuningConfig(
-            task_type=TaskType.SEQ_2_SEQ_LM,
-            inference_mode=False,
-            num_virtual_tokens=model_args.pre_seq_len,            
-        )
-        model = get_peft_model(model, peft_config)
-        model.print_trainable_parameters()
     elif training_args.model_type == "BaseModelWithRMT":
         # load base model
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
@@ -308,7 +291,7 @@ def main():
             config=config,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
-            token=model_args.token,
+            # token=model_args.token,
             trust_remote_code=model_args.trust_remote_code,
         )  
         # prepare rmt parameters
@@ -317,7 +300,8 @@ def main():
             post_seq_len=model_args.post_seq_len if model_args.post_seq_len is not None else 0,
             freeze_model=training_args.freeze_model,
             max_section_length=data_args.max_source_length,
-            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len,
+            max_source_length=data_args.max_source_length-model_args.pre_seq_len-model_args.post_seq_len-1,
+            max_target_length=data_args.max_target_length,
             **config.to_dict()
         )
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len
@@ -330,26 +314,6 @@ def main():
             )
         else:
             raise NotImplementedError
-    elif training_args.model_type == "BaseModelWithPrefixProp":
-        # Here is no need to use post_seq, because BaseModelWithPrefixProp just a soft prompt method
-        data_args.max_source_length = data_args.max_source_length
-        prompt_bart_config = RMTBartConfig(
-            pre_seq_len=model_args.pre_seq_len,
-            # post_seq_len=model_args.post_seq_len,
-            **config.to_dict()
-        )
-        model = BartPrefixPropForConditionalGeneration.from_pretrained(
-            model_args.model_name_or_path,
-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
-            config=prompt_bart_config,
-            cache_dir=model_args.cache_dir,
-            revision=model_args.model_revision,
-            token=model_args.token,
-            trust_remote_code=model_args.trust_remote_code,
-        )
-    elif training_args.model_type == "BaseModelWithRMTAndPrefixProp":
-        data_args.max_source_length = data_args.max_source_length
-        raise NotImplementedError
     else:
         raise NotImplementedError
     print(model)
@@ -665,34 +629,47 @@ def main():
         print(f'{training_args.rouge_type=}')
         if training_args.rouge_type == "Accumulation":
             def compute_metrics(eval_preds):
-                # preds is already combined by sections, but labels is still a list of list
-                # Note: both preds and labels are list instead of tensor
-                # labels: batch_size, section, seq_len
+                
+                # format: [batch_size, section, seq_len]
                 preds, labels = eval_preds
-                # print(f'{labels=}')
-                # print(f'shape_0: {len(labels)}')
-                # print(f'shape_1: {len(labels[0])}')
-                # print(f'shape_2: {len(labels[0][0])}')
                 
-                # print(f'{preds=}')
-                # print(f'shape_0: {len(preds)}')
-                # print(f'shape_1: {len(preds[0])}')
+                from nltk.tokenize import word_tokenize
                 
-                results = []
-                for sections in labels:
-                    new_list = []
-                    for section in sections:
-                        new_list.extend(section)
-                    results.append(new_list)
-                # print(f'{results=}')
-                labels = np.array(results)
-                
-                # print(f'before: {labels=}')
-                # print(f'before: {preds=}')
+                # calculate rouge for each segment
+                for index in range(preds.shape[1]):
+                    pred = preds[:, index, :]
+                    label = labels[:, index, :]
+                    
+                    pred = np.where(pred != -100, pred, tokenizer.pad_token_id)
+                    decoded_pred = tokenizer.batch_decode(pred, skip_special_tokens=True)
+                    # print(f'{decoded_pred=}')
+                    
+                    label = np.where(label != -100, label, tokenizer.pad_token_id)
+                    decoded_label = tokenizer.batch_decode(label, skip_special_tokens=True)
+                    # print(f'{decoded_label=}')
+                    
+                    # Some simple post-processing
+                    decoded_pred, decoded_label = postprocess_text(decoded_pred, decoded_label)
+                    # print(f'{decoded_pred=}')
+                    # print(f'{decoded_label=}')
+                    
+                    result = metric.compute(predictions=decoded_pred, references=decoded_label, use_stemmer=True, tokenizer=word_tokenize)
+                    result = {k: round(v * 100, 4) for k, v in result.items()}
+                    predicton_lens = [np.count_nonzero(p != tokenizer.pad_token_id) for p in pred]
+                    result["gen_len"] = np.mean(predicton_lens)
+                    print(f'-'*50)
+                    print(f'result for {index+1} segment:')
+                    print(result)
+                    print(f'-'*50)
+                    print(f'\n')
+                    
+                # calculate rouge for the whole document
+                preds = preds.reshape(-1, preds.shape[-1])
+                labels = labels.reshape(-1, labels.shape[-1])
                 
                 if isinstance(preds, tuple): 
                     preds = preds[0]
-                    
+                
                 # Replace -100s used for padding as we can't decode them
                 preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
                 decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
@@ -705,12 +682,13 @@ def main():
                 # print(f'decoded_preds: {decoded_preds}')
                 # print(f'decoded_labels: {decoded_labels}')
                 
-                result = metric.compute(predictions=decoded_preds, references=decoded_labels, 
-                                        tokenizer=lambda x: x.split(), use_stemmer=True)
+                result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True, tokenizer=word_tokenize)
                 result = {k: round(v * 100, 4) for k, v in result.items()}
                 prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
                 result["gen_len"] = np.mean(prediction_lens)
-                return result            
+                
+                return result
+             
         elif training_args.rouge_type == "Final":
             raise NotImplementedError
         
@@ -810,6 +788,7 @@ def main():
             if training_args.predict_with_generate:
                 predictions = predict_results.predictions
                 predictions = np.where(predictions != -100, predictions, tokenizer.pad_token_id)
+                predictions = predictions.reshape(-1, predictions.shape[-1])
                 predictions = tokenizer.batch_decode(
                     predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )
