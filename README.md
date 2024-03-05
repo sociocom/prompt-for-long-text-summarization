@@ -68,7 +68,7 @@ project/
 | RMT | 20 | 0 | 512 | 300 | 44.79 | 19.17 | 41.35 | 6 | 5e-5 | 63.77 | 141.50 | 213.74 | 246.10 | 45.33/24.82/40.48 | 44.28/19.07/40.36 | 44.76/17.02/42.24 | 44.82/15.77/42.32 |
 | RMT | 32 | 0 | 512 | 300 | 44.03 | 18.54 | 40.66 | 6 | 5e-5 | 63.02 | 144.92 | 211.32 | 247.60 | 43.87/23.43/39.16 | 43.57/18.50/39.75 | 43.90/16.35/41.40 | 44.85/15.87/42.27 |
 | RMT | 64 | 0 | 512 | 300 | 44.57 | 19.01 | 41.15 | 6 | 5e-5 | 66.05 | 147.11 | 214.30 | 249.73 | 44.54/24.15/39.70 | 44.24/19.14/40.42 | 44.59/16.91/42.10 | 44.92/15.83/42.35 |
-| RMT | 100 | 0 |  512 | 300 |  |  |  | 6 | 5e-5 |:--: |:--: |:--: |:--: |:--: |:--: |:--: |:--: |
+| RMT | 100 | 0 |  512 | 300 | 45.71 | 20.03 | 42.19 | 6 | 5e-5 | 67.96 | 149.57 | 220.55 | 249.69 | 45.54/25.51/40.65 | 45.07/19.82/41.09 | 46.65/18.63/44.93 | 45.52/16.20/42.93 |
 | RMT | 128 | 0 |  512 | 300 |  |  |  | 6 | 5e-5 |:--: |:--: |:--: |:--: |:--: |:--: |:--: |:--: |
 | RMT | 150 | 0 |  512 | 300 |  |  |  | 6 | 5e-5 |:--: |:--: |:--: |:--: |:--: |:--: |:--: |:--: |
 | RMT | 200 | 0 |  512 | 300 | 45.61 | 19.91 | 42.08 | 6 | 5e-5 | 61.41 | 139.81 | 197.47 | 223.08 | 45.62/25.49/40.67 | 45.03/19.80/41.08 | 46.31/18.20/43.68 | 45.50/16.18/42.87 |
@@ -114,52 +114,55 @@ project/
 ### Train Memory Usage
 | Model | Seq_len | Mem |
 | :--: | :--: | :--: |
-| Baseline BART | 512 | 5787 |
-| Baseline BART | 1024 | 10351 |
-| Baseline BART | 2048 | 24781 |
-| Baseline BART | 4096 | 27201 |
+| Baseline BART | 512 | 2679 |
+| Baseline BART | 1024 | 4195 |
+| Baseline BART | 2048 | 9182 |
+| Baseline BART | 4096 | 27200 |
 | Baseline BART | 8192 | OOM |
-| RMT-Summ | 512 | 5939 |
-| RMT-Summ | 1024 | 10118 |
-| RMT-Summ | 2048 | 19180 |
-| RMT-Summ | 4096 | 37249 |
+| RMT-Summ | 512 | 2685 |
+| RMT-Summ | 1024 | 4072 |
+| RMT-Summ | 2048 | 7051 |
+| RMT-Summ | 4096 | 12997 |
+| RMT-Summ | 8192 | 24881 |
 
 ### Inference Memory Usage
 | Model | Seq_len | Mem |
 | :--: | :--: | :--: |
-| Baseline BART | 512 | 1248 |
-| Baseline BART | 1024 | 1702 |
-| Baseline BART | 2048 | |
-| Baseline BART | 4096 | 2654 |
+| Baseline BART | 512 | 425 |
+| Baseline BART | 1024 | 579 |
+| Baseline BART | 2048 | 890 |
+| Baseline BART | 4096 | 3350 |
 | Baseline BART | 8192 | OOM |
-| RMT-Summ | 512 | 1345 |
-| RMT-Summ | 1024 | 1350 |
-| RMT-Summ | 2048 | 2179 |
-| RMT-Summ | 4096 | 3996 |
+| RMT-Summ | 512 | 447 |
+| RMT-Summ | 1024 | 455 |
+| RMT-Summ | 2048 | 755 |
+| RMT-Summ | 4096 | 1382 |
+| RMT-Summ | 8192 | 2640 |
 
 ### Train Iteration Time (iter/s)
 | Model | Seq_len | Iter Time |
 | :--: | :--: | :--: |
-| Baseline BART | 512 | 2.849 |
-| Baseline BART | 1024 | 2.383 |
-| Baseline BART | 2048 | |
-| Baseline BART | 4096 | 5.972 |
+| Baseline BART | 512 | 2.407 |
+| Baseline BART | 1024 | 2.242 |
+| Baseline BART | 2048 | 1.796 |
+| Baseline BART | 4096 | 1.105 |
 | Baseline BART | 8192 | OOM |
-| RMT-Summ | 512 | 2.481 |
-| RMT-Summ | 1024 | 1.029 |
-| RMT-Summ | 2048 | 0.464 |
-| RMT-Summ | 4096 | 0.243 |
+| RMT-Summ | 512 | 4.699 |
+| RMT-Summ | 1024 | 2.228 |
+| RMT-Summ | 2048 | 0.944 |
+| RMT-Summ | 4096 | 0.479 |
+| RMT-Summ | 8192 | 0.242 |
 
 ### Inference Iteration Time (iter/s)
 | Model | Seq_len | Iter Time |
 | :--: | :--: | :--: |
-| Baseline BART | 512 | 0.319 |
-| Baseline BART | 1024 | 0.328 |
-| Baseline BART | 2048 | |
-| Baseline BART | 4096 | 1.527 |
+| Baseline BART | 512 | 0.199 |
+| Baseline BART | 1024 | 0.201 |
+| Baseline BART | 2048 | 0.198 |
+| Baseline BART | 4096 | 0.185 |
 | Baseline BART | 8192 | OOM |
-| RMT-Summ | 512 | 0.11 |
-| RMT-Summ | 1024 | 0.121 |
-| RMT-Summ | 2048 | 0.043 |
-| RMT-Summ | 4096 | 0.022 |
-
+| RMT-Summ | 512 | 0.717 |
+| RMT-Summ | 1024 | 0.24 |
+| RMT-Summ | 2048 | 0.081 |
+| RMT-Summ | 4096 | 0.04 |
+| RMT-Summ | 8192 | 0.02 |

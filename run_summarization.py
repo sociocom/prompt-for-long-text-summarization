@@ -235,34 +235,34 @@ def main():
             # token=model_args.token,
         )
 
-    # if data_args.max_n_segments <= len(raw_datasets['train']['sections'][0]):
-    #     def truncate_max_n_segments(example):
-    #         example['sections'] = example['sections'][:data_args.max_n_segments]
-    #         example['abstract_text'] = example['abstract_text'][:data_args.max_n_segments]
-    #         return example
+    if data_args.max_n_segments <= len(raw_datasets['train']['sections'][0]):
+        def truncate_max_n_segments(example):
+            example['sections'] = example['sections'][:data_args.max_n_segments]
+            example['abstract_text'] = example['abstract_text'][:data_args.max_n_segments]
+            return example
         
-    #     for split in raw_datasets.keys():
-    #         raw_datasets[split] = raw_datasets[split].map(truncate_max_n_segments)
+        for split in raw_datasets.keys():
+            raw_datasets[split] = raw_datasets[split].map(truncate_max_n_segments)
             
-    # else:
-    #     # do dummy process to extend max input length
-    #     def extend_max_n_segments(example):
-    #         # num_segments_to_copy = max_n_segments - len(example['sections'])
-    #         origin_segments_num = len(example['sections'])
-    #         num_segments_to_copy = data_args.max_n_segments - origin_segments_num
+    else:
+        # do dummy process to extend max input length
+        def extend_max_n_segments(example):
+            # num_segments_to_copy = max_n_segments - len(example['sections'])
+            origin_segments_num = len(example['sections'])
+            num_segments_to_copy = data_args.max_n_segments - origin_segments_num
 
-    #         while num_segments_to_copy > 0 :
-    #             segments_to_copy_temp = min(origin_segments_num, num_segments_to_copy)
+            while num_segments_to_copy > 0 :
+                segments_to_copy_temp = min(origin_segments_num, num_segments_to_copy)
                 
-    #             example['sections'] += example['sections'][:segments_to_copy_temp]
-    #             example['abstract_text'] += example['abstract_text'][:segments_to_copy_temp]
+                example['sections'] += example['sections'][:segments_to_copy_temp]
+                example['abstract_text'] += example['abstract_text'][:segments_to_copy_temp]
                 
-    #             num_segments_to_copy -= segments_to_copy_temp
+                num_segments_to_copy -= segments_to_copy_temp
                 
-    #         return example
+            return example
 
-    #     for split in raw_datasets.keys():
-    #         raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
+        for split in raw_datasets.keys():
+            raw_datasets[split] = raw_datasets[split].map(extend_max_n_segments)
          
     
     # See more about loading any type of standard or custom dataset (from files, python dict, pandas DataFrame, etc) at
