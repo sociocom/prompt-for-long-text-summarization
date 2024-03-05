@@ -71,7 +71,7 @@ CUDA_VISIBLE_DEVICES=2 python3 run_summarization_jp.py \
 --rouge_type "Accumulation" \
 --predict_with_generate \
 --freeze_model False \
---learning_rate 5e-6 \
+--learning_rate 3e-6 \
 --skip_memory_metrics False \
 "$@" > $log_filename 2>&1 &
 
