@@ -187,6 +187,7 @@ def main():
     # In distributed training, the load_dataset function guarantee that only one local process can concurrently
     # download the dataset.
     # TODO: todo from here
+    print(f'{data_args.dataset_name=}')
     if data_args.dataset_name == "pubmed":
         raw_datasets = load_dataset(
             "json", 
@@ -203,7 +204,16 @@ def main():
         raw_datasets = raw_datasets.train_test_split(test_size=0.25, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.125/(0.625+0.125), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
-        
+    elif data_args.dataset_name == "tobyoki":
+        data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        def truncate_max_segments(examples):
+            return examples[:10]
+        for column in data_frame.columns:
+            data_frame[column] = data_frame[column].apply(truncate_max_segments)
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -306,14 +316,12 @@ def main():
         )
         data_args.max_source_length = data_args.max_source_length - model_args.pre_seq_len - model_args.post_seq_len-1
         # load rmt model
-        if data_args.dataset_name == "pubmed" or data_args.dataset_name == "pubmed-incremental" or data_args.dataset_name == "NLP_JP_CORPUS_INCREMENTAL_JUMAN":
-            model = BartRMTForPubmed(
-                base_model=base_model,
-                rmt_config=rmt_config,
-                tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-            )
-        else:
-            raise NotImplementedError
+        model = BartRMTForPubmed(
+            base_model=base_model,
+            rmt_config=rmt_config,
+            tokenizer_name_or_path=model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+        )
+
     else:
         raise NotImplementedError
     print(model)
@@ -464,8 +472,12 @@ def main():
     elif training_args.task_type == "Segment":
         def preprocess_function(examples):
             
-            inputs = examples['sections']
-            targets = examples['abs_incremental']
+            if data_args.dataset_name == "tobyoki":
+                inputs = examples['text']
+                targets = examples['incremental_summary']
+            else:
+                inputs = examples['sections']
+                targets = examples['abs_incremental']
             
             model_inputs = {
                 'input_ids': [],
