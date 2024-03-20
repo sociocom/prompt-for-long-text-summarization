@@ -193,17 +193,20 @@ def main():
             "json", 
             data_dir='datasets/pubmed-dataset-processed-final',
         )
+        
     elif data_args.dataset_name == "pubmed-incremental":
         raw_datasets = load_dataset(
             "json",
             data_dir="datasets/pubmed-dataset-incremental",
         )
+        
     elif data_args.dataset_name == "NLP_JP_CORPUS_INCREMENTAL_JUMAN":
         data_frame = pd.read_json('datasets/NLP_JP_CORPUS_INCREMENTAL_JUMAN/NLP_JP_CORPUS_INCREMENTAL_JUMAN.json', orient='records', encoding='utf-8')
         raw_datasets = Dataset.from_pandas(data_frame)
         raw_datasets = raw_datasets.train_test_split(test_size=0.25, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.125/(0.625+0.125), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+        
     elif data_args.dataset_name == "tobyoki":
         data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
         def truncate_max_segments(examples):
@@ -214,6 +217,45 @@ def main():
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+        
+        for split in ['train', 'test', 'validation']:
+            raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
+
+    elif data_args.dataset_name == 'tobyoki-pairwise':
+        data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+        
+        for split in ['train', 'test', 'validation']:
+            raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])        
+        
+        for split in ['train', 'test', 'validation']:
+            # 初始化新的列表，用于存储拆分后的数据
+            new_texts = []
+            new_incremental_summaries = []
+
+            # 遍历每一行数据
+            for data in raw_datasets[split]:
+                # 拆分'text'列中的列表
+                text_sentences = data['text']
+                # 拆分'incremental_summary'列中的列表
+                incremental_summary_sentences = data['incremental_summary']
+                
+                # 将拆分后的句子添加到新的列表中
+                new_texts.extend(text_sentences)
+                new_incremental_summaries.extend(incremental_summary_sentences)
+            
+            # 创建新的数据集对象
+            new_dataset = Dataset.from_dict({
+                'text': new_texts,
+                'incremental_summary': new_incremental_summaries
+            })
+            
+            # 覆盖原始数据集
+            raw_datasets[split] = new_dataset
+                    
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
