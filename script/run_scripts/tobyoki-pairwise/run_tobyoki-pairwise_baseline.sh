@@ -35,8 +35,8 @@ CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --do_train true \
 --do_eval true \
 --do_predict true \
---per_device_train_batch_size 8 \
---per_device_eval_batch_size 8 \
+--per_device_train_batch_size 1 \
+--per_device_eval_batch_size 1 \
 --num_train_epochs 10 \
 --max_train_samples 10000 \
 --max_eval_samples 10000 \
