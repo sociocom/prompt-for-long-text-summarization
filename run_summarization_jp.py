@@ -873,6 +873,7 @@ def main():
                                     tokenizer=lambda x: x.split(), use_stemmer=True)
             result = {k: round(v * 100, 4) for k, v in result.items()}
             prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            print(f'{prediction_lens=}')
             result["gen_len"] = np.mean(prediction_lens)
             return result
 
@@ -915,18 +916,22 @@ def main():
                 
         for split in ['train', 'test', 'validation']:
             raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
-        data_column = raw_datasets['test']['text']
-        target_column = raw_datasets['test']['incremental_summary']
+        data_column = raw_datasets['test']['text'][:2][:4]
+        target_column = raw_datasets['test']['incremental_summary'][:2][:4]
+        
+        print(f'{data_column=}')
+        print(f'{target_column=}')
         
         predictions = []
         labels = []
+        prediction_label_pairs = []
         
         from tqdm import tqdm
         for segments, targets in tqdm(zip(data_column, target_column)):
             memory = None
             for segment, target in zip(segments, targets):
                 model_inputs = tokenizer(segment, return_tensors="pt", padding='max_length', max_length=512, truncation=True)
-                output = model.inference(
+                output = trainer.model.inference(
                     input_ids=model_inputs['input_ids'], 
                     attention_mask=model_inputs['attention_mask'],
                     memory=memory,
@@ -937,15 +942,25 @@ def main():
                 memory = output[1]
                 prediction = tokenizer.batch_decode(output[0], skip_special_tokens=True)[0]
                 
-                predictions.append(prediction)
-                labels.append(target)     
+                print(f'{prediction=}')
+                print(f'{target=}')
+                print('\n' * 3)
                 
+                predictions.append(prediction)
+                labels.append(target)
+                prediction_label_pairs.append({'prediction': prediction, 'target': target})
                 # inner_result = compute_metrics(prediction, target)
                 # print(f'{inner_result=}')
                 
         result = compute_metrics(predictions, labels)
         print(f'{result=}')
         
+        import json
+
+        file_name = f"generated_results/prediction_target_pairs_pre_seq_len_{model_args.pre_seq_len}.json"
+        with open(file_name, 'w', encoding='utf-8') as f:
+            json.dump(prediction_label_pairs, f)     
+               
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "summarization"}
     if data_args.dataset_name is not None:
         kwargs["dataset_tags"] = data_args.dataset_name
