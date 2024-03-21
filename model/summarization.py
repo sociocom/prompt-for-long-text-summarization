@@ -452,12 +452,12 @@ class BartRMTForPubmed(RMTBaseModel):
 
         input_ids = torch.cat([
             self.mem_token_ids.expand(input_ids.shape[0], -1), 
-            input_ids,],
+            input_ids.to(self.model.device),],
             dim=1,
         )
         attention_mask = torch.cat([
             torch.ones_like(self.mem_token_ids).expand(input_ids.shape[0], -1),
-            attention_mask,
+            attention_mask.to(self.model.device),
         ], dim=1)
         
         inputs_embeds = self.model.embeddings(input_ids)

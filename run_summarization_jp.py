@@ -217,7 +217,7 @@ def main():
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
-        
+                
         for split in ['train', 'test', 'validation']:
             raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
 
@@ -850,7 +850,102 @@ def main():
                 output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
                 with open(output_prediction_file, "w") as writer:
                     writer.write("\n".join(predictions))
-                    
+        
+        # inference result
+        metric = evaluate.load('rouge')
+
+        def compute_metrics(preds, labels):
+            preds, labels = preds, labels
+            if isinstance(preds, tuple): 
+                preds = preds[0]
+            # Replace -100s used for padding as we can't decode them
+            # preds = np.where(preds != -100, preds, tokenizer.pad_token_id)
+            # decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+            # labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            # decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            # Some simple post-processing
+            preds, labels = postprocess_text(preds, labels)
+            # print(f'decoded_preds: {decoded_preds}')
+            # print(f'decoded_labels: {decoded_labels}')
+            
+            result = metric.compute(predictions=preds, references=labels, 
+                                    tokenizer=lambda x: x.split(), use_stemmer=True)
+            result = {k: round(v * 100, 4) for k, v in result.items()}
+            prediction_lens = [np.count_nonzero(pred != tokenizer.pad_token_id) for pred in preds]
+            result["gen_len"] = np.mean(prediction_lens)
+            return result
+
+        def postprocess_text(preds, labels):
+            # sent_detector = nltk.RegexpTokenizer(u'[^　！？。]*[！？。.\n]')
+            
+            preds = [pred.strip() for pred in preds]
+            labels = [label.strip() for label in labels]
+
+            # preds = ["\n".join(sent_detector.tokenize(pred)) for pred in preds]
+            # labels = ["\n".join(sent_detector.tokenize(label)) for label in labels]
+            
+            # rougeLSum expects newline after each sentence
+            # preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+            # labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+            
+            import functools
+            from ja_sentence_segmenter.common.pipeline import make_pipeline
+            from ja_sentence_segmenter.concatenate.simple_concatenator import concatenate_matching
+            from ja_sentence_segmenter.normalize.neologd_normalizer import normalize
+            from ja_sentence_segmenter.split.simple_splitter import split_newline, split_punctuation
+
+            split_punc2 = functools.partial(split_punctuation, punctuations=r"．。!?.")
+            # concat_tail_no = functools.partial(concatenate_matching, former_matching_rule=r"^(?P<result>.+)(の)$", remove_former_matched=False)
+            segmenter = make_pipeline(split_punc2)
+
+            preds = ["\n".join(list(segmenter(pred))) for pred in preds]
+            labels = ["\n".join(list(segmenter(label))) for label in labels]
+            
+            # print(f'{preds=}')
+            # print(f'{labels=}')
+            return preds, labels
+        
+        
+        data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+                
+        for split in ['train', 'test', 'validation']:
+            raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
+        data_column = raw_datasets['test']['text']
+        target_column = raw_datasets['test']['incremental_summary']
+        
+        predictions = []
+        labels = []
+        
+        from tqdm import tqdm
+        for segments, targets in tqdm(zip(data_column, target_column)):
+            memory = None
+            for segment, target in zip(segments, targets):
+                model_inputs = tokenizer(segment, return_tensors="pt", padding='max_length', max_length=512, truncation=True)
+                output = model.inference(
+                    input_ids=model_inputs['input_ids'], 
+                    attention_mask=model_inputs['attention_mask'],
+                    memory=memory,
+                    max_new_tokens=300,
+                    do_sample=True,
+                )
+
+                memory = output[1]
+                prediction = tokenizer.batch_decode(output[0], skip_special_tokens=True)[0]
+                
+                predictions.append(prediction)
+                labels.append(target)     
+                
+                # inner_result = compute_metrics(prediction, target)
+                # print(f'{inner_result=}')
+                
+        result = compute_metrics(predictions, labels)
+        print(f'{result=}')
+        
     kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "summarization"}
     if data_args.dataset_name is not None:
         kwargs["dataset_tags"] = data_args.dataset_name
