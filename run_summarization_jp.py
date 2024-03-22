@@ -224,6 +224,10 @@ def main():
     elif data_args.dataset_name == 'tobyoki-pairwise':
         data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
         raw_datasets = Dataset.from_pandas(data_frame)
+        # def truncate_max_segments(examples):
+        #     return examples[:10]
+        # for column in data_frame.columns:
+        #     data_frame[column] = data_frame[column].apply(truncate_max_segments)        
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']

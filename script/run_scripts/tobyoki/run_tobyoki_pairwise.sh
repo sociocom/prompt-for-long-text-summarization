@@ -55,7 +55,7 @@ CUDA_VISIBLE_DEVICES=0 python3 run_summarization_jp.py \
 --task_type "Normal" \
 --predict_with_generate \
 --freeze_model false \
---learning_rate 3e-6 \
+--learning_rate 5e-5 \
 "$@" > $log_filename 2>&1 &
 
 #     done
