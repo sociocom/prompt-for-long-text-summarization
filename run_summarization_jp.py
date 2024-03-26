@@ -220,21 +220,50 @@ def main():
                 
         for split in ['train', 'test', 'validation']:
             raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
+            
+    elif data_args.dataset_name == "tobyoki-wo_space":
+        data_frame = pd.read_json('datasets/tobyoki-wo_space/tobyoki-event_summary_juman_processed_grouped-wo_space.json', orient='records', encoding='utf-8', lines=False)
+        def truncate_max_segments(examples):
+            if len(examples) <= 10:
+                return examples
+            else:
+                return examples[:10]
+        for column in data_frame.columns:
+            data_frame[column] = data_frame[column].apply(truncate_max_segments)
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+                
+        for split in ['train', 'test', 'validation']:
+            raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
 
     elif data_args.dataset_name == 'tobyoki-pairwise':
         data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        def truncate_max_segments(examples):
+            if len(examples) <= 10:
+                return examples
+            else:
+                return examples[:10]
+        for column in data_frame.columns:
+            data_frame[column] = data_frame[column].apply(truncate_max_segments)    
         raw_datasets = Dataset.from_pandas(data_frame)
-        # def truncate_max_segments(examples):
-        #     return examples[:10]
-        # for column in data_frame.columns:
-        #     data_frame[column] = data_frame[column].apply(truncate_max_segments)        
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
         raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
         
-        for split in ['train', 'test', 'validation']:
-            raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])        
+        new_data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        new_raw_datasets = Dataset.from_pandas(new_data_frame)
+        new_raw_datasets = new_raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = new_raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        new_raw_datasets['train'], new_raw_datasets['validation'] = temp['train'], temp['test']
         
+        # 重新赋值给raw_datasets
+        raw_datasets['test'] = new_raw_datasets['test']
+        
+        for split in ['train', 'test', 'validation']:
+            raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])   
+                 
         for split in ['train', 'test', 'validation']:
             # 初始化新的列表，用于存储拆分后的数据
             new_texts = []
@@ -259,7 +288,55 @@ def main():
             
             # 覆盖原始数据集
             raw_datasets[split] = new_dataset
-                    
+            
+    elif data_args.dataset_name == 'tobyoki-pairwise-wo_space':
+        data_frame = pd.read_json('datasets/tobyoki-wo_space/tobyoki-event_summary_juman_processed_grouped-wo_space.json', orient='records', encoding='utf-8', lines=False)
+        # def truncate_max_segments(examples):
+        #     if len(examples) <= 10:
+        #         return examples
+        #     else:
+        #         return examples[:10]
+        # for column in data_frame.columns:
+        #     data_frame[column] = data_frame[column].apply(truncate_max_segments)    
+        raw_datasets = Dataset.from_pandas(data_frame)
+        raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        raw_datasets['train'], raw_datasets['validation'] = temp['train'], temp['test']
+        
+        new_data_frame = pd.read_json('datasets/tobyoki-wo_space/tobyoki-event_summary_juman_processed_grouped-wo_space.json', orient='records', encoding='utf-8', lines=False)
+        new_raw_datasets = Dataset.from_pandas(new_data_frame)
+        new_raw_datasets = new_raw_datasets.train_test_split(test_size=0.1, seed=42)
+        temp = new_raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
+        new_raw_datasets['train'], new_raw_datasets['validation'] = temp['train'], temp['test']
+        
+        # 重新赋值给raw_datasets
+        raw_datasets['test'] = new_raw_datasets['test']        
+                        
+        for split in ['train', 'test', 'validation']:
+            # 初始化新的列表，用于存储拆分后的数据
+            new_texts = []
+            new_incremental_summaries = []
+
+            # 遍历每一行数据
+            for data in raw_datasets[split]:
+                # 拆分'text'列中的列表
+                text_sentences = data['text']
+                # 拆分'incremental_summary'列中的列表
+                incremental_summary_sentences = data['incremental_summary']
+                
+                # 将拆分后的句子添加到新的列表中
+                new_texts.extend(text_sentences)
+                new_incremental_summaries.extend(incremental_summary_sentences)
+            
+            # 创建新的数据集对象
+            new_dataset = Dataset.from_dict({
+                'text': new_texts,
+                'incremental_summary': new_incremental_summaries
+            })
+            
+            # 覆盖原始数据集
+            raw_datasets[split] = new_dataset
+                                
     elif data_args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
         raw_datasets = load_dataset(
@@ -518,7 +595,7 @@ def main():
     elif training_args.task_type == "Segment":
         def preprocess_function(examples):
             
-            if data_args.dataset_name == "tobyoki":
+            if data_args.dataset_name == "tobyoki" or "tobyoki-wo_space":
                 inputs = examples['text']
                 targets = examples['incremental_summary']
             else:
@@ -911,8 +988,10 @@ def main():
             # print(f'{labels=}')
             return preds, labels
         
-        
-        data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        if data_args.dataset_name == "tobyoki":
+            data_frame = pd.read_json('datasets/tobyoki/tobyoki-event_summary_juman_processed_grouped.json', orient='records', encoding='utf-8', lines=False)
+        else:
+            data_frame = pd.read_json('datasets/tobyoki-wo_space/tobyoki-event_summary_juman_processed_grouped-wo_space.json', orient='records', encoding='utf-8', lines=False)
         raw_datasets = Dataset.from_pandas(data_frame)
         raw_datasets = raw_datasets.train_test_split(test_size=0.1, seed=42)
         temp = raw_datasets['train'].train_test_split(test_size=0.1/(0.8+0.1), seed=42)
@@ -920,11 +999,11 @@ def main():
                 
         for split in ['train', 'test', 'validation']:
             raw_datasets[split] = raw_datasets[split].remove_columns(['user', 'summary'])
-        data_column = raw_datasets['test']['text'][:2][:4]
-        target_column = raw_datasets['test']['incremental_summary'][:2][:4]
+        data_column = raw_datasets['test']['text']
+        target_column = raw_datasets['test']['incremental_summary']
         
-        print(f'{data_column=}')
-        print(f'{target_column=}')
+        # print(f'{data_column=}')
+        # print(f'{target_column=}')
         
         predictions = []
         labels = []

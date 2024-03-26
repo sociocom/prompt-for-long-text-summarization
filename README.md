@@ -106,11 +106,10 @@ project/
 ### Tobyoki (with space)
 > training on first 10 segment
 
-
 | Model | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr | 
 | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | 
-| Bart-base-full-segment | 0 | 0 | 512 | 300 | 15.96 | 2.63 | 13.49 | 1 | 5e-5 | 
-| Bart-base-first10 | 0 | 0 | 512 | 300 | 16.10 | 3.00 | 12.54 | 1 | 5e-5 | 
+| Bart-base-full-segment | 0 | 0 | 512 | 300 | 16.09 | 3.00 | 12.54 | 1 | 5e-5 | 
+| Bart-base-first10 | 0 | 0 | 512 | 300 | 9.36 | 2.41 | 7.72 | 1 | 5e-5 | 
 | RMT-first10 | 20 | 0 | 512 | 300 | 7.98 | 0.45 | 7.67 | 1 | 3e-6 | 
 | RMT-first10 | 32 | 0 | 512 | 300 | 8.11 | 0.43 | 7.84 | 1 | 3e-6 | 
 | RMT-first10 | 64 | 0 | 512 | 300 | 7.55 | 0.42 | 7.32 | 1 | 3e-6 | 
@@ -125,15 +124,16 @@ project/
 
 | Model | pre_seq_len | post_seq_len | max_source_length | max_target_length | rouge1 | rouge2 | rougeL | batch_size | lr |
 | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | 
-| Bart-base | 0 | 0 | 512 | 300 | 40.05 | 15.30 | 36.58 | 2 * 3 | 3e-6 | 
-| RMT | 20 | 0 | 512 | 300 | 40.00 | 14.94 | 36.52 | 2 * 3 | 3e-6 | 
-| RMT | 32 | 0 | 512 | 300 | 39.61 | 15.04 | 36.26 | 2 * 3 | 3e-6 | 
-| RMT | 64 | 0 | 512 | 300 | 40.06 | 15.13 | 36.58 | 2 * 3 | 3e-6 | 
-| RMT | 100 | 0 | 512 | 300 | 39.88 | 15.20 | 36.48 | 2 * 3 | 3e-6 | 
-| RMT | 128 | 0 | 512 | 300 | 40.05 | 15.15 | 36.49 | 2 * 3 | 3e-6 | 
-| RMT | 150 | 0 | 512 | 300 | 40.22 | 15.25  | 36.61 | 2 * 3 | 3e-6 |
-| RMT | 200 | 0 | 512 | 300 | 40.08 | 14.85 | 36.51 | 2 * 3 | 3e-6 |
-| RMT | 256 | 0 | 512 | 300 | 39.74 | 15.04 | 36.18 | 2 * 3 | 3e-6 |
+| Bart-base-full-segment | 0 | 0 | 512 | 300 | 18.12 | 3.41 | 12.54 | 1 | 5e-5 |  
+| Bart-base-first10 | 0 | 0 | 512 | 300 | 18.55 | 5.17 | 13.06 | 1 | 5e-5 | 
+| RMT | 20 | 0 | 512 | 300 | 8.20 | 0.63 | 7.84 | 1 | 3e-6 | 
+| RMT | 32 | 0 | 512 | 300 |  |  |  | 1 | 3e-6 | 
+| RMT | 64 | 0 | 512 | 300 |  |  |  | 1 | 3e-6 | 
+| RMT | 100 | 0 | 512 | 300 |  |  | | 1 | 3e-6 | 
+| RMT | 128 | 0 | 512 | 300 |  |  | | 1 | 3e-6 | 
+| RMT | 150 | 0 | 512 | 300 |  |  | | 1 | 3e-6 |
+| RMT | 200 | 0 | 512 | 300 |  |  | | 1 | 3e-6 |
+| RMT | 256 | 0 | 512 | 300 |  |  | | 1 | 3e-6 |
 
 > All experiments on a single A100 40GB
 > About memory usage : https://huggingface.co/docs/transformers/main_classes/trainer
